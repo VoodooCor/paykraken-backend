@@ -1,0 +1,173 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum LedgerType {
+  DEPOSIT
+  WITHDRAWAL
+  PURCHASE
+  SALE
+  ADJUSTMENT
+}
+
+enum DepositStatus {
+  PENDING
+  CONFIRMED
+  CREDITED
+  REJECTED
+}
+
+enum WithdrawalStatus {
+  REQUESTED
+  APPROVED
+  SENDING
+  SENT
+  REJECTED
+}
+
+enum ListingType {
+  RESOURCE
+  PRIVILEGE
+}
+
+enum ListingStatus {
+  ACTIVE
+  SOLD
+  CANCELED
+}
+
+enum TradeStatus {
+  PENDING
+  DELIVERING
+  COMPLETED
+  FAILED
+}
+
+model User {
+  id               Int        @id @default(autoincrement())
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  steamId          String     @unique
+  externalId       String     @unique
+  displayName      String?
+  rustNickname     String?
+  telegramUserId   String?    @unique
+  telegramUsername String?
+
+  wallet           Wallet?
+  listings         Listing[]
+  ledger           LedgerEntry[]
+  deposits         Deposit[]
+  withdrawals      WithdrawalRequest[]
+  salesTrades      Trade[]    @relation("salesTrades")
+  buyTrades        Trade[]    @relation("buyTrades")
+  adminActions     AdminAction[] @relation("adminActions")
+}
+
+model Wallet {
+  id            Int     @id @default(autoincrement())
+  userId        Int     @unique
+  user          User    @relation(fields: [userId], references: [id])
+  solanaAddress String?
+  balanceAtomic BigInt  @default(0)
+}
+
+model LedgerEntry {
+  id            Int       @id @default(autoincrement())
+  createdAt     DateTime  @default(now())
+  userId        Int
+  user          User      @relation(fields: [userId], references: [id])
+  type          LedgerType
+  amountAtomic  BigInt
+  reference     String?
+  txSignature   String?
+  meta          Json?
+}
+
+model Deposit {
+  id            Int           @id @default(autoincrement())
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  userId        Int
+  user          User          @relation(fields: [userId], references: [id])
+  amountAtomic  BigInt
+  status        DepositStatus @default(PENDING)
+  txSignature   String        @unique
+  sourceAddress String
+  detectedAt    DateTime?
+  confirmedAt   DateTime?
+  creditedAt    DateTime?
+  meta          Json?
+}
+
+model WithdrawalRequest {
+  id           Int              @id @default(autoincrement())
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  userId       Int
+  user         User             @relation(fields: [userId], references: [id])
+  amountAtomic BigInt
+  destination  String
+  status       WithdrawalStatus @default(REQUESTED)
+  processedAt  DateTime?
+  txSignature  String?
+  meta         Json?
+}
+
+model Listing {
+  id           Int           @id @default(autoincrement())
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  userId       Int
+  user         User          @relation(fields: [userId], references: [id])
+  type         ListingType
+  itemId       String
+  title        String
+  iconUrl      String?
+  quantity     Int           @default(1)
+  priceAtomic  BigInt
+  status       ListingStatus @default(ACTIVE)
+  expiresAt    DateTime?
+}
+
+model Trade {
+  id           Int        @id @default(autoincrement())
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  listingId    Int        @unique
+  listing      Listing    @relation(fields: [listingId], references: [id])
+  buyerId      Int
+  buyer        User       @relation("buyTrades", fields: [buyerId], references: [id])
+  sellerId     Int
+  seller       User       @relation("salesTrades", fields: [sellerId], references: [id])
+  amountAtomic BigInt
+  status       TradeStatus @default(PENDING)
+  meta         Json?
+  delivery     PendingDelivery?
+}
+
+model PendingDelivery {
+  id        Int       @id @default(autoincrement())
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  tradeId   Int       @unique
+  trade     Trade     @relation(fields: [tradeId], references: [id])
+  serverId  String
+  action    String
+  payload   Json?
+  status    String    @default("PENDING") // PENDING|SENT|CONFIRMED|FAILED
+}
+
+model AdminAction {
+  id          Int      @id @default(autoincrement())
+  createdAt   DateTime @default(now())
+  adminUserId Int
+  admin       User     @relation("adminActions", fields: [adminUserId], references: [id])
+  action      String
+  meta        Json?
+}
