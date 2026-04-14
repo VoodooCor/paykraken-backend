@@ -1,7 +1,13 @@
 const express = require('express');
 const { generateExternalId } = require('../utils/id');
-const { SERVER_API_KEY, TELEGRAM_MINI_APP_URL } = require('../config');
-
+const link = TELEGRAM_BOT_USERNAME
+  ? `https://t.me/${TELEGRAM_BOT_USERNAME}/app?startapp=${encodeURIComponent(user.externalId)}`
+  : TELEGRAM_MINI_APP_URL;
+const {
+  SERVER_API_KEY,
+  TELEGRAM_MINI_APP_URL,
+  TELEGRAM_BOT_USERNAME
+} = require('../config');
 function requireServerKey(req, res, next) {
   const key = req.header('X-Server-Key');
   if (!key || key !== SERVER_API_KEY) {
@@ -76,7 +82,7 @@ module.exports = ({ prisma }) => {
       res.json({
         steamId: user.steamId,
         externalId: user.externalId,
-        link: TELEGRAM_MINI_APP_URL
+        link
       });
     } catch (e) {
       next(e);
