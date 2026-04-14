@@ -1,13 +1,11 @@
 const express = require('express');
 const { generateExternalId } = require('../utils/id');
-const link = TELEGRAM_BOT_USERNAME
-  ? `https://t.me/${TELEGRAM_BOT_USERNAME}/app?startapp=${encodeURIComponent(user.externalId)}`
-  : TELEGRAM_MINI_APP_URL;
 const {
   SERVER_API_KEY,
   TELEGRAM_MINI_APP_URL,
   TELEGRAM_BOT_USERNAME
 } = require('../config');
+
 function requireServerKey(req, res, next) {
   const key = req.header('X-Server-Key');
   if (!key || key !== SERVER_API_KEY) {
@@ -78,6 +76,10 @@ module.exports = ({ prisma }) => {
           data: { rustNickname: nickname }
         });
       }
+
+      const link = TELEGRAM_BOT_USERNAME
+        ? `https://t.me/${TELEGRAM_BOT_USERNAME}/app?startapp=${encodeURIComponent(user.externalId)}`
+        : TELEGRAM_MINI_APP_URL;
 
       res.json({
         steamId: user.steamId,
