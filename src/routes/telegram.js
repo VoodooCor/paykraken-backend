@@ -1,61 +1,112 @@
 const express = require('express');
-const crypto = require('crypto');
-const { TELEGRAM_BOT_TOKEN } = require('../config');
-
-// Проверка WebApp initData (по правилам Telegram)
-function verifyTelegramInitData(initData) {
-  if (!TELEGRAM_BOT_TOKEN) throw new Error('TELEGRAM_BOT_TOKEN not set');
-  const url = new URLSearchParams(initData);
-  const hash = url.get('hash');
-  if (!hash) return false;
-
-  const params = [];
-  url.forEach((v, k) => {
-    if (k === 'hash') return;
-    params.push(`${k}=${v}`);
-  });
-  params.sort();
-  const dataCheckString = params.join('\n');
-
-  const secret = crypto.createHmac('sha256', 'WebAppData').update(TELEGRAM_BOT_TOKEN).digest();
-  const h = crypto.createHmac('sha256', secret).update(dataCheckString).digest('hex');
-
-  return h === hash;
-}
+const {
+  extractInitData,
+  getTelegramUserFromInitData
+} = require('../utils/telegram');
 
 module.exports = ({ prisma }) => {
   const router = express.Router();
 
-  // Линковка Telegram ↔ User по externalId
   router.post('/link', async (req, res, next) => {
     try {
-      const { externalId, initData } = req.body || {};
-      if (!externalId || !initData) return res.status(400).json({ error: 'missing fields' });
+      const { externalId } = req.body || {};
+      if (!externalId) {
+        return res.status(400).json({ error: 'externalId required' });
+      }
 
-      if (!verifyTelegramInitData(initData)) {
+      const initData = extractInitData(req);
+      const tg = getTelegramUserFromInitData(initData);
+      if (!tg) {
         return res.status(401).json({ error: 'INVALID_TELEGRAM_AUTH' });
       }
 
-      const params = new URLSearchParams(initData);
-      const userParam = params.get('user');
-      const tg = userParam ? JSON.parse(userParam) : null;
-      const telegramUserId = tg?.id?.toString();
-      const telegramUsername = tg?.username || null;
+      const user = await prisma.user.findUnique({
+        where: { externalId },
+        include: { wallet: true }
+      });
 
-      if (!telegramUserId) {
-        return res.status(400).json({ error: 'telegram userId missing' });
+      if (!user) {
+        return res.status(404).json({ error: 'user not found' });
       }
 
-      const user = await prisma.user.findUnique({ where: { externalId } });
-      if (!user) return res.status(404).json({ error: 'user not found' });
+      const existingByTelegram = await prisma.user.findFirst({
+        where: {
+          telegramUserId: tg.id,
+          NOT: { id: user.id }
+        }
+      });
+
+      if (existingByTelegram) {
+        return res.status(409).json({
+          error: 'TELEGRAM_ALREADY_LINKED_TO_ANOTHER_ACCOUNT'
+        });
+      }
+
+      if (user.telegramUserId && user.telegramUserId !== tg.id) {
+        return res.status(409).json({
+          error: 'ACCOUNT_ALREADY_LINKED_TO_ANOTHER_TELEGRAM'
+        });
+      }
 
       const updated = await prisma.user.update({
         where: { id: user.id },
-        data: { telegramUserId, telegramUsername }
+        data: {
+          telegramUserId: tg.id,
+          telegramUsername: tg.username
+        },
+        include: { wallet: true }
       });
 
-      res.json({ ok: true, user: { externalId: updated.externalId, telegramUserId: updated.telegramUserId, telegramUsername: updated.telegramUsername } });
-    } catch (e) { next(e); }
+      res.json({
+        ok: true,
+        linked: true,
+        user: {
+          externalId: updated.externalId,
+          steamId: updated.steamId,
+          nickname: updated.rustNickname,
+          telegramUserId: updated.telegramUserId,
+          telegramUsername: updated.telegramUsername,
+          solanaAddress: updated.wallet?.solanaAddress || null,
+          balanceAtomic: updated.wallet?.balanceAtomic || 0n
+        }
+      });
+    } catch (e) {
+      next(e);
+    }
+  });
+
+  router.get('/me', async (req, res, next) => {
+    try {
+      const initData = extractInitData(req);
+      const tg = getTelegramUserFromInitData(initData);
+      if (!tg) {
+        return res.status(401).json({ error: 'INVALID_TELEGRAM_AUTH' });
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { telegramUserId: tg.id },
+        include: { wallet: true }
+      });
+
+      if (!user) {
+        return res.status(404).json({ error: 'ACCOUNT_NOT_LINKED' });
+      }
+
+      res.json({
+        ok: true,
+        user: {
+          externalId: user.externalId,
+          steamId: user.steamId,
+          nickname: user.rustNickname,
+          telegramUserId: user.telegramUserId,
+          telegramUsername: user.telegramUsername,
+          solanaAddress: user.wallet?.solanaAddress || null,
+          balanceAtomic: user.wallet?.balanceAtomic || 0n
+        }
+      });
+    } catch (e) {
+      next(e);
+    }
   });
 
   return router;

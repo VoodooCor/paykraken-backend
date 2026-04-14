@@ -49,14 +49,14 @@ enum TradeStatus {
 }
 
 model User {
-  id               Int        @id @default(autoincrement())
-  createdAt        DateTime   @default(now())
-  updatedAt        DateTime   @updatedAt
-  steamId          String     @unique
-  externalId       String     @unique
+  id               Int           @id @default(autoincrement())
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  steamId          String        @unique
+  externalId       String        @unique
   displayName      String?
   rustNickname     String?
-  telegramUserId   String?    @unique
+  telegramUserId   String?       @unique
   telegramUsername String?
 
   wallet           Wallet?
@@ -64,8 +64,8 @@ model User {
   ledger           LedgerEntry[]
   deposits         Deposit[]
   withdrawals      WithdrawalRequest[]
-  salesTrades      Trade[]    @relation("salesTrades")
-  buyTrades        Trade[]    @relation("buyTrades")
+  salesTrades      Trade[]       @relation("salesTrades")
+  buyTrades        Trade[]       @relation("buyTrades")
   adminActions     AdminAction[] @relation("adminActions")
 }
 
@@ -73,15 +73,15 @@ model Wallet {
   id            Int     @id @default(autoincrement())
   userId        Int     @unique
   user          User    @relation(fields: [userId], references: [id])
-  solanaAddress String?
+  solanaAddress String? @unique
   balanceAtomic BigInt  @default(0)
 }
 
 model LedgerEntry {
-  id            Int       @id @default(autoincrement())
-  createdAt     DateTime  @default(now())
+  id            Int        @id @default(autoincrement())
+  createdAt     DateTime   @default(now())
   userId        Int
-  user          User      @relation(fields: [userId], references: [id])
+  user          User       @relation(fields: [userId], references: [id])
   type          LedgerType
   amountAtomic  BigInt
   reference     String?
@@ -133,22 +133,27 @@ model Listing {
   priceAtomic  BigInt
   status       ListingStatus @default(ACTIVE)
   expiresAt    DateTime?
+  meta         Json?
+
+  trades       Trade[]
 }
 
 model Trade {
-  id           Int        @id @default(autoincrement())
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-  listingId    Int        @unique
-  listing      Listing    @relation(fields: [listingId], references: [id])
+  id           Int         @id @default(autoincrement())
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  listingId    Int
+  listing      Listing     @relation(fields: [listingId], references: [id])
   buyerId      Int
-  buyer        User       @relation("buyTrades", fields: [buyerId], references: [id])
+  buyer        User        @relation("buyTrades", fields: [buyerId], references: [id])
   sellerId     Int
-  seller       User       @relation("salesTrades", fields: [sellerId], references: [id])
+  seller       User        @relation("salesTrades", fields: [sellerId], references: [id])
   amountAtomic BigInt
   status       TradeStatus @default(PENDING)
   meta         Json?
   delivery     PendingDelivery?
+
+  @@index([listingId])
 }
 
 model PendingDelivery {

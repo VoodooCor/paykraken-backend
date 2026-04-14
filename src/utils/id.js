@@ -1,14 +1,17 @@
-const ALPH = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // без I/O
+const crypto = require('crypto');
+
+const ALPH = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 const DIGITS = '0123456789';
 
 function rnd(n, dict) {
-  let s = '';
-  for (let i = 0; i < n; i++) s += dict[Math.floor(Math.random() * dict.length)];
-  return s;
+  let out = '';
+  for (let i = 0; i < n; i++) {
+    out += dict[crypto.randomInt(0, dict.length)];
+  }
+  return out;
 }
 
 function generateExternalId() {
-  // Формат: AAAA-#####-AAAAA
   return `${rnd(4, ALPH)}-${rnd(5, DIGITS)}-${rnd(5, ALPH)}`;
 }
 
