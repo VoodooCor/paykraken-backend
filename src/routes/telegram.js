@@ -67,6 +67,7 @@ module.exports = ({ prisma }) => {
           telegramUserId: updated.telegramUserId,
           telegramUsername: updated.telegramUsername,
           solanaAddress: updated.wallet?.solanaAddress || null,
+          solanaVerified: updated.wallet?.solanaVerified || false,
           balanceAtomic: updated.wallet?.balanceAtomic || 0n
         }
       });
@@ -101,6 +102,7 @@ module.exports = ({ prisma }) => {
           telegramUserId: user.telegramUserId,
           telegramUsername: user.telegramUsername,
           solanaAddress: user.wallet?.solanaAddress || null,
+          solanaVerified: user.wallet?.solanaVerified || false,
           balanceAtomic: user.wallet?.balanceAtomic || 0n
         }
       });

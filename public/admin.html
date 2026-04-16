@@ -1,0 +1,735 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pay Blood Kraken Admin</title>
+    <style>
+      :root {
+        --bg: #0f141a;
+        --panel: #18212b;
+        --text: #f3f7fb;
+        --muted: #93a4b7;
+        --line: rgba(255,255,255,.08);
+        --accent: #2ea6ff;
+        --success: #3ccf91;
+        --danger: #ff5c7a;
+        --warning: #f7b84b;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: linear-gradient(180deg, #0e1318 0%, #111923 100%);
+        color: var(--text);
+        font-family: Inter, Arial, sans-serif;
+      }
+
+      .app {
+        max-width: 1320px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+
+      .topbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 18px;
+        flex-wrap: wrap;
+      }
+
+      .title h1 {
+        margin: 0;
+        font-size: 24px;
+      }
+
+      .title p {
+        margin: 4px 0 0;
+        color: var(--muted);
+      }
+
+      .card {
+        background: rgba(255,255,255,.03);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 16px;
+        margin-bottom: 16px;
+      }
+
+      .controls {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .tabs {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 16px;
+      }
+
+      .tab-btn {
+        border: none;
+        border-radius: 12px;
+        padding: 11px 14px;
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+        background: rgba(255,255,255,.06);
+        color: white;
+        border: 1px solid var(--line);
+      }
+
+      .tab-btn.active {
+        background: var(--accent);
+        color: white;
+      }
+
+      input, select, textarea {
+        width: 100%;
+        background: rgba(255,255,255,.06);
+        border: 1px solid var(--line);
+        color: white;
+        border-radius: 12px;
+        padding: 12px 14px;
+        outline: none;
+        font-size: 14px;
+      }
+
+      button {
+        border: none;
+        border-radius: 12px;
+        padding: 11px 14px;
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .btn-primary {
+        background: var(--accent);
+        color: white;
+      }
+
+      .btn-success {
+        background: var(--success);
+        color: white;
+      }
+
+      .btn-danger {
+        background: var(--danger);
+        color: white;
+      }
+
+      .btn-warning {
+        background: var(--warning);
+        color: #161616;
+      }
+
+      .btn-ghost {
+        background: rgba(255,255,255,.06);
+        color: white;
+        border: 1px solid var(--line);
+      }
+
+      .muted {
+        color: var(--muted);
+      }
+
+      .row {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .withdraw-list,
+      .audit-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .withdraw-item,
+      .audit-item {
+        background: rgba(255,255,255,.03);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 14px;
+      }
+
+      .withdraw-top,
+      .audit-top {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+        margin-bottom: 12px;
+      }
+
+      .withdraw-title,
+      .audit-title {
+        font-size: 16px;
+        font-weight: 800;
+      }
+
+      .pill {
+        padding: 7px 10px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .pill.requested,
+      .pill.approved,
+      .pill.sending {
+        background: rgba(247,184,75,.15);
+        color: #ffd27b;
+      }
+
+      .pill.sent {
+        background: rgba(60,207,145,.15);
+        color: #8ef0bd;
+      }
+
+      .pill.rejected {
+        background: rgba(255,92,122,.15);
+        color: #ff9aae;
+      }
+
+      .pill.audit {
+        background: rgba(46,166,255,.15);
+        color: #9dd7ff;
+      }
+
+      .kv {
+        display: grid;
+        grid-template-columns: 180px 1fr;
+        gap: 8px 12px;
+        margin-top: 10px;
+      }
+
+      .mono {
+        font-family: Consolas, monospace;
+        word-break: break-all;
+        font-size: 12px;
+      }
+
+      .actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 14px;
+      }
+
+      .status-box {
+        white-space: pre-wrap;
+        word-break: break-word;
+        background: rgba(255,255,255,.04);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 12px;
+        font-size: 13px;
+      }
+
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
+      }
+
+      .stat {
+        background: rgba(255,255,255,.03);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 14px;
+      }
+
+      .stat .num {
+        font-size: 26px;
+        font-weight: 800;
+        margin-top: 8px;
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      @media (max-width: 900px) {
+        .stats {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .stats {
+          grid-template-columns: 1fr;
+        }
+
+        .kv {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <div class="topbar">
+        <div class="title">
+          <h1>Admin Panel</h1>
+          <p>Withdrawals + Audit Log</p>
+        </div>
+        <div class="controls">
+          <button class="btn-ghost" id="saveKeyBtn">Сохранить ключ</button>
+          <button class="btn-ghost" id="testAuditBtn">Test Audit</button>
+          <button class="btn-primary" id="reloadBtn">Обновить</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <div style="flex:2;min-width:280px;">
+            <div class="muted" style="margin-bottom:6px;">X-Admin-Key</div>
+            <input id="adminKeyInput" placeholder="Введите ADMIN_API_KEY" />
+          </div>
+          <div style="flex:1;min-width:180px;">
+            <div class="muted" style="margin-bottom:6px;">Фильтр статуса заявок</div>
+            <select id="statusFilter">
+              <option value="open">Открытые</option>
+              <option value="all">Все</option>
+              <option value="REQUESTED">REQUESTED</option>
+              <option value="APPROVED">APPROVED</option>
+              <option value="SENDING">SENDING</option>
+              <option value="SENT">SENT</option>
+              <option value="REJECTED">REJECTED</option>
+            </select>
+          </div>
+          <div style="flex:1;min-width:180px;">
+            <div class="muted" style="margin-bottom:6px;">Фильтр audit targetType</div>
+            <input id="auditTargetTypeInput" placeholder="Например WITHDRAWAL" value="WITHDRAWAL" />
+          </div>
+          <div style="flex:1;min-width:180px;">
+            <div class="muted" style="margin-bottom:6px;">Фильтр audit targetId</div>
+            <input id="auditTargetIdInput" placeholder="Например 15" />
+          </div>
+        </div>
+      </div>
+
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="withdrawals">Заявки на вывод</button>
+        <button class="tab-btn" data-tab="audit">Audit Log</button>
+      </div>
+
+      <div class="stats" id="statsBox">
+        <div class="stat">
+          <div class="muted">Всего загружено</div>
+          <div class="num" id="statTotal">0</div>
+        </div>
+        <div class="stat">
+          <div class="muted">REQUESTED</div>
+          <div class="num" id="statRequested">0</div>
+        </div>
+        <div class="stat">
+          <div class="muted">APPROVED / SENDING</div>
+          <div class="num" id="statProcessing">0</div>
+        </div>
+        <div class="stat">
+          <div class="muted">SENT / REJECTED</div>
+          <div class="num" id="statClosed">0</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="status-box" id="statusBox">Ожидание действий администратора...</div>
+      </div>
+
+      <section id="tab-withdrawals">
+        <div class="withdraw-list" id="withdrawList"></div>
+      </section>
+
+      <section id="tab-audit" class="hidden">
+        <div class="card">
+          <div class="row">
+            <button class="btn-primary" id="loadAuditBtn">Загрузить audit</button>
+            <button class="btn-ghost" id="loadAuditByTargetBtn">Загрузить по target</button>
+          </div>
+        </div>
+        <div class="audit-list" id="auditList"></div>
+      </section>
+    </div>
+
+    <script>
+      const els = {
+        adminKeyInput: document.getElementById('adminKeyInput'),
+        statusFilter: document.getElementById('statusFilter'),
+        auditTargetTypeInput: document.getElementById('auditTargetTypeInput'),
+        auditTargetIdInput: document.getElementById('auditTargetIdInput'),
+        statusBox: document.getElementById('statusBox'),
+        withdrawList: document.getElementById('withdrawList'),
+        auditList: document.getElementById('auditList'),
+        statTotal: document.getElementById('statTotal'),
+        statRequested: document.getElementById('statRequested'),
+        statProcessing: document.getElementById('statProcessing'),
+        statClosed: document.getElementById('statClosed')
+      };
+
+      const savedKey = localStorage.getItem('pbk_admin_key') || '';
+      if (savedKey) {
+        els.adminKeyInput.value = savedKey;
+      }
+
+      function setStatus(message) {
+        els.statusBox.textContent =
+          typeof message === 'string' ? message : JSON.stringify(message, null, 2);
+      }
+
+      function atomicToBLKR(value, decimals = 9) {
+        try {
+          const s = String(value ?? '0');
+          const neg = s.startsWith('-');
+          const raw = neg ? s.slice(1) : s;
+          const pad = raw.padStart(decimals + 1, '0');
+          const i = pad.slice(0, -decimals);
+          let f = pad.slice(-decimals).replace(/0+$/, '');
+          return `${neg ? '-' : ''}${i}${f ? '.' + f : ''}`;
+        } catch {
+          return '0';
+        }
+      }
+
+      async function adminApi(path, options = {}) {
+        const key = els.adminKeyInput.value.trim();
+        if (!key) {
+          throw new Error('Введите X-Admin-Key');
+        }
+
+        const headers = {
+          'Content-Type': 'application/json',
+          'X-Admin-Key': key,
+          ...(options.headers || {})
+        };
+
+        const response = await fetch(path, {
+          ...options,
+          headers
+        });
+
+        const text = await response.text();
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = text;
+        }
+
+        if (!response.ok) {
+          throw new Error(typeof data === 'object' ? JSON.stringify(data) : String(data));
+        }
+
+        return data;
+      }
+
+      function renderStats(items) {
+        const requested = items.filter(x => x.status === 'REQUESTED').length;
+        const processing = items.filter(x => x.status === 'APPROVED' || x.status === 'SENDING').length;
+        const closed = items.filter(x => x.status === 'SENT' || x.status === 'REJECTED').length;
+
+        els.statTotal.textContent = String(items.length);
+        els.statRequested.textContent = String(requested);
+        els.statProcessing.textContent = String(processing);
+        els.statClosed.textContent = String(closed);
+      }
+
+      function statusClass(status) {
+        return String(status || '').toLowerCase();
+      }
+
+      function renderWithdrawals(items) {
+        els.withdrawList.innerHTML = '';
+        renderStats(items);
+
+        if (!items.length) {
+          els.withdrawList.innerHTML = `
+            <div class="card">
+              <div class="muted">Заявки не найдены</div>
+            </div>
+          `;
+          return;
+        }
+
+        items.forEach((w) => {
+          const card = document.createElement('div');
+          card.className = 'withdraw-item';
+
+          card.innerHTML = `
+            <div class="withdraw-top">
+              <div>
+                <div class="withdraw-title">#${w.id} — ${atomicToBLKR(w.amountAtomic)} BLKR</div>
+                <div class="muted">Создано: ${new Date(w.createdAt).toLocaleString()}</div>
+              </div>
+              <div class="pill ${statusClass(w.status)}">${w.status}</div>
+            </div>
+
+            <div class="kv">
+              <div class="muted">External ID</div>
+              <div>${w.user?.externalId || '—'}</div>
+
+              <div class="muted">Steam ID</div>
+              <div class="mono">${w.user?.steamId || '—'}</div>
+
+              <div class="muted">Ник</div>
+              <div>${w.user?.rustNickname || '—'}</div>
+
+              <div class="muted">Telegram</div>
+              <div>${w.user?.telegramUsername ? '@' + w.user.telegramUsername : '—'}</div>
+
+              <div class="muted">Wallet</div>
+              <div class="mono">${w.user?.wallet?.solanaAddress || '—'}</div>
+
+              <div class="muted">Destination</div>
+              <div class="mono">${w.destination || '—'}</div>
+
+              <div class="muted">Tx Signature</div>
+              <div class="mono">${w.txSignature || '—'}</div>
+
+              <div class="muted">Processed At</div>
+              <div>${w.processedAt ? new Date(w.processedAt).toLocaleString() : '—'}</div>
+            </div>
+
+            <div style="margin-top:12px;">
+              <div class="muted" style="margin-bottom:6px;">Tx Signature / Hash</div>
+              <input id="txsig-${w.id}" placeholder="Вставьте tx signature при статусе SENT" value="${w.txSignature || ''}" />
+            </div>
+
+            <div class="actions">
+              <button class="btn-warning action-btn" data-id="${w.id}" data-status="APPROVED">APPROVED</button>
+              <button class="btn-primary action-btn" data-id="${w.id}" data-status="SENDING">SENDING</button>
+              <button class="btn-success action-btn" data-id="${w.id}" data-status="SENT">SENT</button>
+              <button class="btn-danger action-btn" data-id="${w.id}" data-status="REJECTED">REJECTED</button>
+              <button class="btn-ghost view-audit-btn" data-id="${w.id}">История</button>
+            </div>
+          `;
+
+          els.withdrawList.appendChild(card);
+        });
+
+        document.querySelectorAll('.action-btn').forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            const id = btn.dataset.id;
+            const status = btn.dataset.status;
+            const txInput = document.getElementById(`txsig-${id}`);
+            const txSignature = txInput ? txInput.value.trim() : '';
+
+            try {
+              setStatus(`Обновляем заявку #${id} -> ${status}...`);
+
+              const payload = {
+                status,
+                meta: {
+                  updatedFromAdminPanel: true,
+                  updatedAt: new Date().toISOString()
+                }
+              };
+
+              if (txSignature) {
+                payload.txSignature = txSignature;
+              }
+
+              const data = await adminApi(`/api/admin/withdrawals/${id}/status`, {
+                method: 'POST',
+                body: JSON.stringify(payload)
+              });
+
+              setStatus(data);
+              await loadWithdrawals();
+            } catch (e) {
+              setStatus(`Ошибка обновления статуса: ${e.message}`);
+            }
+          });
+        });
+
+        document.querySelectorAll('.view-audit-btn').forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            const id = btn.dataset.id;
+            els.auditTargetTypeInput.value = 'WITHDRAWAL';
+            els.auditTargetIdInput.value = String(id);
+            activateTab('audit');
+            await loadAuditByTarget();
+          });
+        });
+      }
+
+      function renderAudit(items) {
+        els.auditList.innerHTML = '';
+
+        if (!items.length) {
+          els.auditList.innerHTML = `
+            <div class="card">
+              <div class="muted">Audit log пуст</div>
+            </div>
+          `;
+          return;
+        }
+
+        items.forEach((item) => {
+          const card = document.createElement('div');
+          card.className = 'audit-item';
+
+          card.innerHTML = `
+            <div class="audit-top">
+              <div>
+                <div class="audit-title">#${item.id} — ${item.action}</div>
+                <div class="muted">${new Date(item.createdAt).toLocaleString()}</div>
+              </div>
+              <div class="pill audit">${item.targetType || '—'}${item.targetId ? ' #' + item.targetId : ''}</div>
+            </div>
+
+            <div class="kv">
+              <div class="muted">Actor Type</div>
+              <div>${item.actorType || '—'}</div>
+
+              <div class="muted">Actor ID</div>
+              <div class="mono">${item.actorId || '—'}</div>
+
+              <div class="muted">Actor Label</div>
+              <div>${item.actorLabel || '—'}</div>
+
+              <div class="muted">Target Type</div>
+              <div>${item.targetType || '—'}</div>
+
+              <div class="muted">Target ID</div>
+              <div>${item.targetId || '—'}</div>
+
+              <div class="muted">IP</div>
+              <div class="mono">${item.ip || '—'}</div>
+
+              <div class="muted">User-Agent</div>
+              <div class="mono">${item.userAgent || '—'}</div>
+
+              <div class="muted">Meta</div>
+              <div class="mono">${JSON.stringify(item.meta || {}, null, 2)}</div>
+            </div>
+          `;
+
+          els.auditList.appendChild(card);
+        });
+      }
+
+      async function loadWithdrawals() {
+        try {
+          const status = els.statusFilter.value;
+          const data = await adminApi(`/api/admin/withdrawals?status=${encodeURIComponent(status)}`, {
+            method: 'GET'
+          });
+
+          renderWithdrawals(data.withdrawals || []);
+          setStatus(`Загружено заявок: ${data.count || 0}`);
+        } catch (e) {
+          setStatus(`Ошибка загрузки заявок: ${e.message}`);
+        }
+      }
+
+      async function loadAudit() {
+        try {
+          const data = await adminApi('/api/admin/audit?take=100', {
+            method: 'GET'
+          });
+
+          renderAudit(data.items || []);
+          setStatus(`Загружено audit записей: ${data.count || 0}`);
+        } catch (e) {
+          setStatus(`Ошибка загрузки audit log: ${e.message}`);
+        }
+      }
+
+      async function loadAuditByTarget() {
+        try {
+          const targetType = els.auditTargetTypeInput.value.trim();
+          const targetId = els.auditTargetIdInput.value.trim();
+
+          if (!targetType || !targetId) {
+            setStatus('Укажи targetType и targetId');
+            return;
+          }
+
+          const data = await adminApi(
+            `/api/admin/audit/${encodeURIComponent(targetType)}/${encodeURIComponent(targetId)}`,
+            { method: 'GET' }
+          );
+
+          renderAudit(data.items || []);
+          setStatus(`Загружено audit записей по ${targetType}#${targetId}: ${data.count || 0}`);
+        } catch (e) {
+          setStatus(`Ошибка загрузки audit по target: ${e.message}`);
+        }
+      }
+
+      async function testAudit() {
+        try {
+          const data = await adminApi('/api/admin/audit/test', {
+            method: 'POST',
+            body: JSON.stringify({
+              source: 'admin.html',
+              ts: new Date().toISOString()
+            })
+          });
+
+          setStatus(data);
+        } catch (e) {
+          setStatus(`Ошибка test audit: ${e.message}`);
+        }
+      }
+
+      function activateTab(tab) {
+        document.querySelectorAll('.tab-btn').forEach((btn) => {
+          btn.classList.toggle('active', btn.dataset.tab === tab);
+        });
+
+        document.getElementById('tab-withdrawals').classList.toggle('hidden', tab !== 'withdrawals');
+        document.getElementById('tab-audit').classList.toggle('hidden', tab !== 'audit');
+      }
+
+      document.querySelectorAll('.tab-btn').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const tab = btn.dataset.tab;
+          activateTab(tab);
+
+          if (tab === 'withdrawals') {
+            await loadWithdrawals();
+          } else if (tab === 'audit') {
+            await loadAudit();
+          }
+        });
+      });
+
+      document.getElementById('saveKeyBtn').addEventListener('click', () => {
+        const key = els.adminKeyInput.value.trim();
+        localStorage.setItem('pbk_admin_key', key);
+        setStatus('X-Admin-Key сохранён в localStorage браузера');
+      });
+
+      document.getElementById('reloadBtn').addEventListener('click', async () => {
+        const activeTab = document.querySelector('.tab-btn.active')?.dataset.tab || 'withdrawals';
+        if (activeTab === 'withdrawals') {
+          await loadWithdrawals();
+        } else {
+          await loadAudit();
+        }
+      });
+
+      document.getElementById('testAuditBtn').addEventListener('click', testAudit);
+      document.getElementById('loadAuditBtn').addEventListener('click', loadAudit);
+      document.getElementById('loadAuditByTargetBtn').addEventListener('click', loadAuditByTarget);
+      els.statusFilter.addEventListener('change', loadWithdrawals);
+
+      if (els.adminKeyInput.value.trim()) {
+        loadWithdrawals();
+      }
+    </script>
+  </body>
+</html>

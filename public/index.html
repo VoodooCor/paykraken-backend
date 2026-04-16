@@ -9,95 +9,671 @@
     <title>Pay Blood Kraken</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
+      :root {
+        --bg: #0f141a;
+        --panel: #18212b;
+        --panel-2: #1f2a36;
+        --text: #f3f7fb;
+        --muted: #93a4b7;
+        --line: rgba(255,255,255,0.08);
+        --accent: #2ea6ff;
+        --accent-2: #3ccf91;
+        --danger: #ff5c7a;
+        --warning: #f7b84b;
+        --shadow: 0 10px 30px rgba(0,0,0,.28);
+        --radius: 18px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
       body {
-        font-family: Arial, sans-serif;
-        background: #17212b;
-        color: #fff;
         margin: 0;
-        padding: 16px;
+        background: linear-gradient(180deg, #0e1318 0%, #111923 100%);
+        color: var(--text);
+        font-family: Inter, Arial, sans-serif;
+      }
+
+      .app {
+        max-width: 920px;
+        margin: 0 auto;
+        min-height: 100vh;
+        padding: 16px 14px 120px;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .logo {
+        width: 44px;
+        height: 44px;
+        border-radius: 14px;
+        background: linear-gradient(135deg, #2ea6ff, #6d5cff);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 800;
+        box-shadow: var(--shadow);
+      }
+
+      .brand h1 {
+        margin: 0;
+        font-size: 19px;
+      }
+
+      .brand p {
+        margin: 2px 0 0;
+        color: var(--muted);
+        font-size: 12px;
       }
 
       .card {
-        background: #1f2c3a;
-        border-radius: 12px;
+        background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.015));
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
         padding: 16px;
-        max-width: 720px;
-        margin: 0 auto;
+        box-shadow: var(--shadow);
       }
 
-      h1 {
-        margin-top: 0;
+      .hero {
+        display: grid;
+        grid-template-columns: 1.25fr .95fr;
+        gap: 14px;
+        margin-bottom: 16px;
       }
 
-      input, button {
-        width: 100%;
-        box-sizing: border-box;
-        margin-top: 10px;
-        padding: 12px;
-        border-radius: 8px;
-        border: none;
-        font-size: 16px;
-      }
-
-      input {
-        background: #fff;
-        color: #000;
-      }
-
-      button {
-        background: #2ea6ff;
-        color: #fff;
-        cursor: pointer;
-      }
-
-      pre {
-        white-space: pre-wrap;
-        word-break: break-word;
-        background: #0f1720;
-        padding: 12px;
-        border-radius: 8px;
-        margin-top: 12px;
+      .balance-box {
+        background: radial-gradient(circle at top right, rgba(46,166,255,.22), transparent 35%),
+                    linear-gradient(180deg, #16202b, #131b24);
       }
 
       .muted {
-        opacity: 0.8;
+        color: var(--muted);
+      }
+
+      .big-balance {
+        font-size: 34px;
+        font-weight: 800;
+        margin-top: 10px;
+      }
+
+      .row {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .btn {
+        border: none;
+        border-radius: 14px;
+        padding: 12px 14px;
         font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: .18s ease;
+      }
+
+      .btn:hover {
+        transform: translateY(-1px);
+      }
+
+      .btn-primary {
+        background: var(--accent);
+        color: white;
+      }
+
+      .btn-success {
+        background: var(--accent-2);
+        color: white;
+      }
+
+      .btn-danger {
+        background: var(--danger);
+        color: white;
+      }
+
+      .btn-warning {
+        background: var(--warning);
+        color: #161616;
+      }
+
+      .btn-ghost {
+        background: rgba(255,255,255,.06);
+        color: white;
+        border: 1px solid var(--line);
+      }
+
+      .section {
+        margin-bottom: 16px;
+      }
+
+      .section-title {
+        margin: 0 0 12px;
+        font-size: 17px;
+      }
+
+      .grid-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+      }
+
+      .grid-3 {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 14px;
+      }
+
+      .list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .item {
+        background: rgba(255,255,255,.03);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 12px;
+      }
+
+      .item-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: center;
+      }
+
+      .item-title {
+        font-weight: 700;
+      }
+
+      .pill {
+        padding: 6px 10px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 700;
+        background: rgba(255,255,255,.08);
+      }
+
+      .pill.ok {
+        background: rgba(60,207,145,.16);
+        color: #75efb6;
+      }
+
+      .pill.warn {
+        background: rgba(247,184,75,.16);
+        color: #ffd27b;
+      }
+
+      .pill.bad {
+        background: rgba(255,92,122,.16);
+        color: #ff91a6;
+      }
+
+      .tabs {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        padding: 10px 12px 18px;
+        background: linear-gradient(180deg, rgba(15,20,26,0), rgba(15,20,26,.92) 35%, rgba(15,20,26,1));
+        backdrop-filter: blur(14px);
+      }
+
+      .tabs-inner {
+        max-width: 920px;
+        margin: 0 auto;
+        background: rgba(24,33,43,.92);
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        padding: 8px;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+      }
+
+      .tab {
+        border: none;
+        background: transparent;
+        color: var(--muted);
+        padding: 12px;
+        border-radius: 14px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .tab.active {
+        background: rgba(46,166,255,.16);
+        color: white;
+      }
+
+      input, textarea {
+        width: 100%;
+        background: rgba(255,255,255,.06);
+        border: 1px solid var(--line);
+        color: white;
+        border-radius: 14px;
+        padding: 12px 14px;
+        outline: none;
+        font-size: 14px;
+      }
+
+      .field {
+        margin-bottom: 10px;
+      }
+
+      .label {
+        font-size: 12px;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+
+      .market-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+      }
+
+      .market-card {
+        background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.02));
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 14px;
+      }
+
+      .market-icon {
+        width: 54px;
+        height: 54px;
+        border-radius: 14px;
+        background: linear-gradient(135deg, rgba(46,166,255,.18), rgba(109,92,255,.18));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 10px;
+        font-size: 24px;
+      }
+
+      .mono {
+        word-break: break-all;
+        font-family: Consolas, monospace;
+        font-size: 12px;
+      }
+
+      .status-box {
+        margin-top: 12px;
+        padding: 12px;
+        border-radius: 14px;
+        background: rgba(255,255,255,.04);
+        border: 1px solid var(--line);
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-size: 13px;
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      .hint {
+        margin-top: 10px;
+        padding: 12px;
+        border-radius: 12px;
+        background: rgba(247,184,75,.08);
+        border: 1px solid rgba(247,184,75,.18);
+        color: #ffd27b;
+        font-size: 13px;
+        line-height: 1.45;
+      }
+
+      .good-box {
+        margin-top: 10px;
+        padding: 12px;
+        border-radius: 12px;
+        background: rgba(60,207,145,.08);
+        border: 1px solid rgba(60,207,145,.18);
+        color: #9df4c8;
+        font-size: 13px;
+        line-height: 1.45;
+      }
+
+      .browser-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 10px;
+      }
+
+      .small {
+        font-size: 12px;
+      }
+
+      .two-col-inline {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 10px;
+      }
+
+      @media (max-width: 760px) {
+        .hero,
+        .grid-2,
+        .grid-3,
+        .market-grid,
+        .two-col-inline {
+          grid-template-columns: 1fr;
+        }
+
+        .big-balance {
+          font-size: 28px;
+        }
+
+        .topbar {
+          align-items: flex-start;
+          flex-direction: column;
+        }
       }
     </style>
   </head>
   <body>
-    <div class="card">
-      <h1>Pay Blood Kraken</h1>
-      <div id="userInfo" class="muted">Загрузка Telegram данных...</div>
+    <div class="app">
+      <div class="topbar">
+        <div class="brand">
+          <div class="logo">PK</div>
+          <div>
+            <h1>Pay Blood Kraken</h1>
+            <p>Rust × Telegram × Solana BLKR</p>
+          </div>
+        </div>
+        <div class="row">
+          <button class="btn btn-ghost" id="openExternalBtn">Открыть в браузере</button>
+          <button class="btn btn-ghost" id="copyAppLinkBtn">Скопировать ссылку</button>
+          <button class="btn btn-ghost" id="refreshAllBtn">Обновить</button>
+        </div>
+      </div>
 
-      <input id="externalId" placeholder="External ID (если не пришёл через startapp)" />
+      <div class="hero">
+        <div class="card balance-box">
+          <div class="muted">Баланс кошелька</div>
+          <div class="big-balance" id="balanceView">0 BLKR</div>
+          <div class="row" style="margin-top:14px;">
+            <button class="btn btn-primary" id="checkDepositBtn">Я оплатил</button>
+            <button class="btn btn-success" id="openWalletTabBtn">Кошелёк</button>
+          </div>
+          <div class="status-box" id="statusBox">Загрузка...</div>
+        </div>
 
-      <button id="btnMe">Проверить мой аккаунт</button>
-      <button id="btnLink">Привязать Telegram к External ID</button>
+        <div class="card">
+          <div class="section-title">Аккаунт</div>
+          <div class="item">
+            <div class="muted">Telegram</div>
+            <div id="tgInfo">—</div>
+          </div>
+          <div class="item" style="margin-top:10px;">
+            <div class="muted">External ID</div>
+            <div id="externalIdView">—</div>
+          </div>
+          <div class="item" style="margin-top:10px;">
+            <div class="muted">Steam ID</div>
+            <div id="steamIdView">—</div>
+          </div>
+        </div>
+      </div>
 
-      <pre id="output">Ожидание...</pre>
+      <section id="tab-profile" class="section">
+        <h2 class="section-title">Профиль</h2>
+        <div class="grid-2">
+          <div class="card">
+            <div class="field">
+              <div class="label">Ваш игровой ID</div>
+              <input id="externalIdInput" placeholder="Например DWED-21344-DADDA" />
+            </div>
+            <div class="row">
+              <button class="btn btn-primary" id="linkTelegramBtn">Привязать Telegram</button>
+              <button class="btn btn-ghost" id="meBtn">Проверить аккаунт</button>
+            </div>
+
+            <div class="hint" style="margin-top:12px;">
+              Если вы открыли приложение из Rust по ссылке бота, ваш External ID мог подставиться автоматически.
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="list">
+              <div class="item">
+                <div class="muted">Ник Rust</div>
+                <div id="nicknameView">—</div>
+              </div>
+              <div class="item">
+                <div class="muted">Telegram статус</div>
+                <div id="telegramLinkedView">—</div>
+              </div>
+              <div class="item">
+                <div class="muted">Кошелёк Solana</div>
+                <div id="walletShortView">—</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="tab-market" class="section hidden">
+        <h2 class="section-title">Магазин</h2>
+        <div class="card">
+          <div class="row" style="margin-bottom:12px;">
+            <button class="btn btn-ghost" id="reloadMarketBtn">Обновить лоты</button>
+          </div>
+          <div class="market-grid" id="marketList"></div>
+        </div>
+      </section>
+
+      <section id="tab-wallet" class="section hidden">
+        <h2 class="section-title">Кошелёк</h2>
+
+        <div class="grid-2">
+          <div class="card">
+            <div class="field">
+              <div class="label">Адрес для пополнения BLKR</div>
+              <div class="two-col-inline">
+                <input id="merchantWalletInput" readonly />
+                <button class="btn btn-ghost" id="copyMerchantBtn">Скопировать</button>
+              </div>
+            </div>
+
+            <div class="field" style="margin-top:14px;">
+              <div class="label">Ваш Solana кошелёк</div>
+              <input id="solanaWalletInput" placeholder="Кошелёк будет выбран через Phantom" readonly />
+            </div>
+
+            <div class="row">
+              <button class="btn btn-primary" id="phantomConnectBtn">Подключить Phantom</button>
+              <button class="btn btn-success" id="phantomSignBtn">Подписать и привязать</button>
+            </div>
+
+            <div class="row" style="margin-top:10px;">
+              <button class="btn btn-danger" id="unlinkWalletBtn">Отвязать кошелёк</button>
+            </div>
+
+            <div class="hint" id="walletFallbackBox">
+              Внутри Telegram WebView Phantom может не открываться. Если подключение не найдено — откройте Mini App во внешнем браузере, где установлен Phantom.
+              <div class="browser-actions">
+                <button class="btn btn-warning" id="openExternalBtn2">Открыть в браузере</button>
+                <button class="btn btn-ghost" id="copyAppLinkBtn2">Скопировать ссылку</button>
+              </div>
+            </div>
+
+            <div class="good-box" id="walletVerifiedBox" style="display:none;">
+              Кошелёк успешно подтверждён через подпись Phantom.
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="field">
+              <div class="label">Сумма вывода в atomic</div>
+              <input id="withdrawAmountInput" placeholder="Например 1000000000" />
+            </div>
+            <div class="row">
+              <button class="btn btn-success" id="withdrawBtn">Запросить вывод</button>
+              <button class="btn btn-primary" id="checkDepositBtn2">Проверить пополнение</button>
+            </div>
+            <div style="margin-top:10px;" class="muted">
+              Вывод доступен только на подтверждённый Solana кошелёк.
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-2" style="margin-top:16px;">
+          <div class="card">
+            <h3 style="margin-top:0;">История пополнений</h3>
+            <div class="list" id="depositHistory"></div>
+          </div>
+          <div class="card">
+            <h3 style="margin-top:0;">История выводов</h3>
+            <div class="list" id="withdrawHistory"></div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="tabs">
+      <div class="tabs-inner">
+        <button class="tab active" data-tab="profile">Профиль</button>
+        <button class="tab" data-tab="market">Магазин</button>
+        <button class="tab" data-tab="wallet">Кошелёк</button>
+      </div>
     </div>
 
     <script>
-      const tg = window.Telegram.WebApp;
-      tg.ready();
-      tg.expand();
-
-      const output = document.getElementById('output');
-      const userInfo = document.getElementById('userInfo');
-      const externalIdInput = document.getElementById('externalId');
-
-      const initData = tg.initData || '';
-      const startParam = tg.initDataUnsafe?.start_param || '';
-      const tgUser = tg.initDataUnsafe?.user || null;
-
-      if (startParam) {
-        externalIdInput.value = startParam;
+      const tg = window.Telegram?.WebApp;
+      if (tg) {
+        tg.ready();
+        tg.expand();
       }
 
-      userInfo.textContent = tgUser
-        ? `Telegram: ${tgUser.first_name || ''} ${tgUser.last_name || ''} (@${tgUser.username || 'no_username'}, id=${tgUser.id})`
-        : 'Telegram user не найден. Открой Mini App именно внутри Telegram.';
+      const initData = tg?.initData || '';
+      const tgUser = tg?.initDataUnsafe?.user || null;
+      const startParam = tg?.initDataUnsafe?.start_param || '';
+
+      const state = {
+        externalId: startParam || '',
+        profile: null,
+        me: null,
+        listings: [],
+        phantomPublicKey: null,
+        phantomProvider: null,
+        linkNonce: null,
+        linkMessage: null
+      };
+
+      const els = {
+        statusBox: document.getElementById('statusBox'),
+        balanceView: document.getElementById('balanceView'),
+        tgInfo: document.getElementById('tgInfo'),
+        externalIdView: document.getElementById('externalIdView'),
+        steamIdView: document.getElementById('steamIdView'),
+        nicknameView: document.getElementById('nicknameView'),
+        telegramLinkedView: document.getElementById('telegramLinkedView'),
+        walletShortView: document.getElementById('walletShortView'),
+        externalIdInput: document.getElementById('externalIdInput'),
+        merchantWalletInput: document.getElementById('merchantWalletInput'),
+        solanaWalletInput: document.getElementById('solanaWalletInput'),
+        withdrawAmountInput: document.getElementById('withdrawAmountInput'),
+        marketList: document.getElementById('marketList'),
+        depositHistory: document.getElementById('depositHistory'),
+        withdrawHistory: document.getElementById('withdrawHistory'),
+        walletVerifiedBox: document.getElementById('walletVerifiedBox')
+      };
+
+      els.externalIdInput.value = state.externalId;
+
+      els.tgInfo.textContent = tgUser
+        ? `${tgUser.first_name || ''} ${tgUser.last_name || ''} (@${tgUser.username || 'no_username'}, id=${tgUser.id})`
+        : 'Mini App открыт не из Telegram';
+
+      function setStatus(message) {
+        els.statusBox.textContent =
+          typeof message === 'string' ? message : JSON.stringify(message, null, 2);
+      }
+
+      function shortAddress(addr) {
+        if (!addr) return 'Не привязан';
+        if (addr.length < 12) return addr;
+        return `${addr.slice(0, 6)}...${addr.slice(-6)}`;
+      }
+
+      function atomicToBLKR(value, decimals = 9) {
+        try {
+          const s = String(value ?? '0');
+          const neg = s.startsWith('-');
+          const raw = neg ? s.slice(1) : s;
+          const pad = raw.padStart(decimals + 1, '0');
+          const i = pad.slice(0, -decimals);
+          let f = pad.slice(-decimals).replace(/0+$/, '');
+          return `${neg ? '-' : ''}${i}${f ? '.' + f : ''}`;
+        } catch {
+          return '0';
+        }
+      }
+
+      function arrayBufferToBase64(bufferLike) {
+        const bytes = bufferLike instanceof Uint8Array ? bufferLike : new Uint8Array(bufferLike);
+        let binary = '';
+        const chunkSize = 0x8000;
+        for (let i = 0; i < bytes.length; i += chunkSize) {
+          const chunk = bytes.subarray(i, i + chunkSize);
+          binary += String.fromCharCode(...chunk);
+        }
+        return btoa(binary);
+      }
+
+      function getPhantomProvider() {
+        const provider = window.phantom?.solana || window.solana;
+        if (provider?.isPhantom) return provider;
+        return null;
+      }
+
+      function getCurrentAppUrl() {
+        return window.location.href;
+      }
+
+      async function copyText(value, successMessage = 'Скопировано') {
+        try {
+          await navigator.clipboard.writeText(value);
+          setStatus(successMessage);
+        } catch {
+          setStatus('Не удалось скопировать');
+        }
+      }
+
+      function openExternalBrowser() {
+        const url = getCurrentAppUrl();
+
+        try {
+          if (tg && tg.openLink) {
+            tg.openLink(url, { try_instant_view: false });
+            setStatus('Открываем приложение во внешнем браузере...');
+            return;
+          }
+        } catch {}
+
+        try {
+          window.open(url, '_blank', 'noopener,noreferrer');
+          setStatus('Пытаемся открыть приложение во внешнем браузере...');
+        } catch {
+          setStatus('Не удалось открыть браузер автоматически. Скопируйте ссылку вручную.');
+        }
+      }
 
       async function api(path, options = {}) {
         const headers = {
@@ -112,7 +688,6 @@
         });
 
         const text = await response.text();
-
         let data;
         try {
           data = JSON.parse(text);
@@ -120,40 +695,477 @@
           data = text;
         }
 
-        output.textContent = JSON.stringify(
-          {
-            status: response.status,
-            ok: response.ok,
-            data
-          },
-          null,
-          2
-        );
+        if (!response.ok) {
+          throw new Error(typeof data === 'object' ? JSON.stringify(data) : String(data));
+        }
 
-        return { response, data };
+        return data;
       }
 
-      document.getElementById('btnMe').addEventListener('click', async () => {
-        try {
-          await api('/api/telegram/me', {
-            method: 'GET'
-          });
-        } catch (err) {
-          output.textContent = String(err);
-        }
-      });
+      function getExternalId() {
+        const value = els.externalIdInput.value.trim();
+        state.externalId = value;
+        return value;
+      }
 
-      document.getElementById('btnLink').addEventListener('click', async () => {
+      function renderProfile(profileData) {
+        if (!profileData) return;
+
+        const p = profileData.profile || {};
+        state.profile = profileData;
+
+        els.balanceView.textContent = `${atomicToBLKR(p.balanceAtomic)} BLKR`;
+        els.externalIdView.textContent = p.externalId || '—';
+        els.steamIdView.textContent = p.steamId || '—';
+        els.nicknameView.textContent = p.nickname || '—';
+
+        els.telegramLinkedView.textContent = p.telegramUserId
+          ? `Привязан (@${p.telegramUsername || 'unknown'})`
+          : 'Не привязан';
+
+        let walletText = 'Не привязан';
+        if (p.solanaAddress) {
+          walletText = `${shortAddress(p.solanaAddress)}${p.solanaVerified ? ' ✓ verified' : ' ⚠ not verified'}`;
+        }
+
+        els.walletShortView.textContent = walletText;
+        els.merchantWalletInput.value = p.merchantWallet || '';
+        els.solanaWalletInput.value = p.solanaAddress || state.phantomPublicKey || '';
+
+        if (p.solanaVerified) {
+          els.walletVerifiedBox.style.display = 'block';
+        } else {
+          els.walletVerifiedBox.style.display = 'none';
+        }
+
+        renderDeposits(profileData.deposits || []);
+        renderWithdrawals(profileData.withdrawals || []);
+      }
+
+      function renderDeposits(items) {
+        els.depositHistory.innerHTML = '';
+
+        if (!items.length) {
+          els.depositHistory.innerHTML = `<div class="item"><div class="muted">Пополнений пока нет</div></div>`;
+          return;
+        }
+
+        for (const d of items) {
+          const el = document.createElement('div');
+          el.className = 'item';
+          el.innerHTML = `
+            <div class="item-head">
+              <div class="item-title">${atomicToBLKR(d.amountAtomic)} BLKR</div>
+              <div class="pill ${d.status === 'CREDITED' ? 'ok' : 'warn'}">${d.status}</div>
+            </div>
+            <div class="muted mono">${d.txSignature || ''}</div>
+            <div class="muted">${new Date(d.createdAt).toLocaleString()}</div>
+          `;
+          els.depositHistory.appendChild(el);
+        }
+      }
+
+      function renderWithdrawals(items) {
+        els.withdrawHistory.innerHTML = '';
+
+        if (!items.length) {
+          els.withdrawHistory.innerHTML = `<div class="item"><div class="muted">Выводов пока нет</div></div>`;
+          return;
+        }
+
+        for (const d of items) {
+          const statusClass =
+            d.status === 'SENT' ? 'ok' :
+            d.status === 'REJECTED' ? 'bad' : 'warn';
+
+          const el = document.createElement('div');
+          el.className = 'item';
+          el.innerHTML = `
+            <div class="item-head">
+              <div class="item-title">${atomicToBLKR(d.amountAtomic)} BLKR</div>
+              <div class="pill ${statusClass}">${d.status}</div>
+            </div>
+            <div class="muted mono">${d.destination || ''}</div>
+            <div class="muted">${new Date(d.createdAt).toLocaleString()}</div>
+          `;
+          els.withdrawHistory.appendChild(el);
+        }
+      }
+
+      function renderMarket(listings) {
+        els.marketList.innerHTML = '';
+
+        if (!listings.length) {
+          els.marketList.innerHTML = `<div class="item"><div class="muted">Нет активных лотов</div></div>`;
+          return;
+        }
+
+        listings.forEach((item) => {
+          const card = document.createElement('div');
+          card.className = 'market-card';
+          card.innerHTML = `
+            <div class="market-icon">${item.type === 'PRIVILEGE' ? '👑' : '📦'}</div>
+            <div class="item-title">${item.title}</div>
+            <div class="muted">Тип: ${item.type}</div>
+            <div class="muted">Количество: ${item.quantity}</div>
+            <div class="muted">Продавец: ${item.user?.rustNickname || 'Игрок'}</div>
+            <div style="font-size:18px;font-weight:800;margin:10px 0 12px;">
+              ${atomicToBLKR(item.priceAtomic)} BLKR
+            </div>
+            <button class="btn btn-primary buy-btn" data-id="${item.id}">Купить</button>
+          `;
+          els.marketList.appendChild(card);
+        });
+
+        document.querySelectorAll('.buy-btn').forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            try {
+              const externalId = getExternalId();
+              if (!externalId) {
+                setStatus('Сначала укажи External ID');
+                return;
+              }
+
+              const id = btn.dataset.id;
+              const data = await api(`/api/market/listings/${id}/buy`, {
+                method: 'POST',
+                body: JSON.stringify({
+                  buyerExternalId: externalId,
+                  serverId: 'rust-main-1'
+                })
+              });
+
+              setStatus(data);
+              await loadProfile();
+              await loadMarket();
+            } catch (e) {
+              setStatus(`Ошибка покупки: ${e.message}`);
+            }
+          });
+        });
+      }
+
+      async function loadMe() {
         try {
-          const externalId = externalIdInput.value.trim();
-          await api('/api/telegram/link', {
+          const data = await api('/api/telegram/me');
+          state.me = data;
+          return data;
+        } catch (e) {
+          setStatus(`Проверка аккаунта: ${e.message}`);
+          return null;
+        }
+      }
+
+      async function loadProfile() {
+        try {
+          const externalId = getExternalId();
+          if (!externalId) {
+            setStatus('Укажи External ID');
+            return null;
+          }
+
+          const data = await api(`/api/wallet/profile/${encodeURIComponent(externalId)}`);
+          renderProfile(data);
+          setStatus('Профиль загружен');
+          return data;
+        } catch (e) {
+          setStatus(`Ошибка загрузки профиля: ${e.message}`);
+          return null;
+        }
+      }
+
+      async function loadMarket() {
+        try {
+          const data = await api('/api/market/listings');
+          state.listings = data.listings || [];
+          renderMarket(state.listings);
+          return data;
+        } catch (e) {
+          setStatus(`Ошибка загрузки маркета: ${e.message}`);
+          return null;
+        }
+      }
+
+      async function linkTelegram() {
+        try {
+          const externalId = getExternalId();
+          if (!externalId) {
+            setStatus('Укажи External ID');
+            return;
+          }
+
+          const data = await api('/api/telegram/link', {
             method: 'POST',
             body: JSON.stringify({ externalId })
           });
-        } catch (err) {
-          output.textContent = String(err);
+
+          setStatus(data);
+          await loadProfile();
+        } catch (e) {
+          setStatus(`Ошибка привязки Telegram: ${e.message}`);
         }
+      }
+
+      async function connectPhantom() {
+        try {
+          const provider = getPhantomProvider();
+
+          if (!provider) {
+            setStatus(
+              'Phantom не найден внутри Telegram. Нажми "Открыть в браузере" и открой Mini App во внешнем браузере, где установлен Phantom.'
+            );
+            return null;
+          }
+
+          const response = await provider.connect();
+          const publicKey = response.publicKey?.toString();
+
+          if (!publicKey) {
+            throw new Error('Phantom did not return public key');
+          }
+
+          state.phantomProvider = provider;
+          state.phantomPublicKey = publicKey;
+          els.solanaWalletInput.value = publicKey;
+
+          setStatus(`Phantom подключен: ${publicKey}`);
+          return publicKey;
+        } catch (e) {
+          setStatus(`Ошибка подключения Phantom: ${e.message}`);
+          return null;
+        }
+      }
+
+      async function requestWalletNonce() {
+        const externalId = getExternalId();
+        if (!externalId) {
+          throw new Error('Укажи External ID');
+        }
+
+        const data = await api('/api/wallet/nonce', {
+          method: 'POST',
+          body: JSON.stringify({ externalId })
+        });
+
+        state.linkNonce = data.nonce;
+        state.linkMessage = data.message;
+        return data;
+      }
+
+      async function signAndLinkWallet() {
+        try {
+          const externalId = getExternalId();
+          if (!externalId) {
+            setStatus('Укажи External ID');
+            return;
+          }
+
+          let provider = state.phantomProvider || getPhantomProvider();
+          if (!provider) {
+            setStatus(
+              'Phantom не найден. Открой Mini App во внешнем браузере и повтори подключение.'
+            );
+            return;
+          }
+
+          let address = state.phantomPublicKey || els.solanaWalletInput.value.trim();
+
+          if (!address) {
+            const connected = await connectPhantom();
+            if (!connected) return;
+            address = connected;
+            provider = state.phantomProvider || getPhantomProvider();
+          }
+
+          const nonceData = await requestWalletNonce();
+          const message = nonceData.message;
+
+          const encodedMessage = new TextEncoder().encode(message);
+          const signed = await provider.signMessage(encodedMessage, 'utf8');
+          const signatureBytes = signed.signature || signed;
+          const signatureBase64 = arrayBufferToBase64(signatureBytes);
+
+          const result = await api('/api/wallet/link', {
+            method: 'POST',
+            body: JSON.stringify({
+              externalId,
+              address,
+              signatureBase64
+            })
+          });
+
+          setStatus(result);
+          await loadProfile();
+        } catch (e) {
+          setStatus(`Ошибка подписи/привязки кошелька: ${e.message}`);
+        }
+      }
+
+      async function unlinkWallet() {
+        try {
+          const externalId = getExternalId();
+          if (!externalId) {
+            setStatus('Укажи External ID');
+            return;
+          }
+
+          const data = await api('/api/wallet/link', {
+            method: 'DELETE',
+            body: JSON.stringify({ externalId })
+          });
+
+          state.phantomPublicKey = null;
+          state.phantomProvider = null;
+          els.solanaWalletInput.value = '';
+
+          setStatus(data);
+          await loadProfile();
+        } catch (e) {
+          setStatus(`Ошибка отвязки кошелька: ${e.message}`);
+        }
+      }
+
+      async function checkDepositWithRetries() {
+        try {
+          const externalId = getExternalId();
+          if (!externalId) {
+            setStatus('Укажи External ID');
+            return;
+          }
+
+          setStatus('Проверяем поступление...');
+
+          for (let attempt = 1; attempt <= 4; attempt++) {
+            try {
+              const data = await api('/api/wallet/deposit/check', {
+                method: 'POST',
+                body: JSON.stringify({ externalId })
+              });
+
+              if (Number(data.creditedCount || 0) > 0) {
+                setStatus(`Пополнение найдено и зачислено.\n${JSON.stringify(data, null, 2)}`);
+                await loadProfile();
+                return;
+              }
+
+              if (attempt < 4) {
+                setStatus(`Поступление пока не найдено. Повторная проверка ${attempt}/3 через 60 секунд...`);
+                await new Promise((resolve) => setTimeout(resolve, 60000));
+              } else {
+                setStatus('Поступление не найдено после 4 проверок.');
+              }
+            } catch (inner) {
+              if (attempt < 4) {
+                setStatus(`Ошибка проверки, повтор ${attempt}/3 через 60 секунд...\n${inner.message}`);
+                await new Promise((resolve) => setTimeout(resolve, 60000));
+              } else {
+                throw inner;
+              }
+            }
+          }
+
+          await loadProfile();
+        } catch (e) {
+          setStatus(`Ошибка проверки пополнения: ${e.message}`);
+        }
+      }
+
+      async function requestWithdraw() {
+        try {
+          const externalId = getExternalId();
+          const amountAtomic = els.withdrawAmountInput.value.trim();
+
+          if (!externalId) {
+            setStatus('Укажи External ID');
+            return;
+          }
+
+          if (!amountAtomic) {
+            setStatus('Укажи сумму вывода в atomic');
+            return;
+          }
+
+          const data = await api('/api/wallet/withdraw', {
+            method: 'POST',
+            body: JSON.stringify({
+              externalId,
+              amountAtomic
+            })
+          });
+
+          setStatus(data);
+          await loadProfile();
+        } catch (e) {
+          setStatus(`Ошибка вывода: ${e.message}`);
+        }
+      }
+
+      function activateTab(tab) {
+        document.querySelectorAll('.tab').forEach((t) => {
+          t.classList.toggle('active', t.dataset.tab === tab);
+        });
+
+        document.getElementById('tab-profile').classList.toggle('hidden', tab !== 'profile');
+        document.getElementById('tab-market').classList.toggle('hidden', tab !== 'market');
+        document.getElementById('tab-wallet').classList.toggle('hidden', tab !== 'wallet');
+      }
+
+      document.querySelectorAll('.tab').forEach((tab) => {
+        tab.addEventListener('click', () => activateTab(tab.dataset.tab));
       });
+
+      document.getElementById('linkTelegramBtn').addEventListener('click', linkTelegram);
+      document.getElementById('meBtn').addEventListener('click', loadMe);
+      document.getElementById('phantomConnectBtn').addEventListener('click', connectPhantom);
+      document.getElementById('phantomSignBtn').addEventListener('click', signAndLinkWallet);
+      document.getElementById('unlinkWalletBtn').addEventListener('click', unlinkWallet);
+      document.getElementById('checkDepositBtn').addEventListener('click', checkDepositWithRetries);
+      document.getElementById('checkDepositBtn2').addEventListener('click', checkDepositWithRetries);
+      document.getElementById('withdrawBtn').addEventListener('click', requestWithdraw);
+      document.getElementById('reloadMarketBtn').addEventListener('click', loadMarket);
+      document.getElementById('copyMerchantBtn').addEventListener('click', () =>
+        copyText(els.merchantWalletInput.value || '', 'Адрес кошелька для пополнения скопирован')
+      );
+      document.getElementById('copyAppLinkBtn').addEventListener('click', () =>
+        copyText(getCurrentAppUrl(), 'Ссылка Mini App скопирована')
+      );
+      document.getElementById('copyAppLinkBtn2').addEventListener('click', () =>
+        copyText(getCurrentAppUrl(), 'Ссылка Mini App скопирована')
+      );
+      document.getElementById('openExternalBtn').addEventListener('click', openExternalBrowser);
+      document.getElementById('openExternalBtn2').addEventListener('click', openExternalBrowser);
+      document.getElementById('refreshAllBtn').addEventListener('click', async () => {
+        await loadMe();
+        await loadProfile();
+        await loadMarket();
+      });
+      document.getElementById('openWalletTabBtn').addEventListener('click', () => activateTab('wallet'));
+
+      (async function init() {
+        try {
+          await loadMe();
+        } catch {}
+
+        await loadMarket();
+
+        if (state.externalId) {
+          await loadProfile();
+        } else {
+          setStatus('Укажи External ID и привяжи Telegram аккаунт');
+        }
+
+        const provider = getPhantomProvider();
+        if (provider) {
+          state.phantomProvider = provider;
+          try {
+            if (provider.publicKey) {
+              const pk = provider.publicKey.toString();
+              state.phantomPublicKey = pk;
+              els.solanaWalletInput.value = pk;
+            }
+          } catch {}
+        }
+      })();
     </script>
   </body>
 </html>

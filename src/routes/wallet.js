@@ -1,123 +1,205 @@
 const express = require('express');
-const {
-  SERVER_API_KEY,
-  MERCHANT_WALLET,
-  BLKR_MINT,
-  BLKR_DECIMALS
-} = require('../config');
-const {
-  isValidBase58Address,
-  getMerchantTokenAccount
-} = require('../utils/solana_rpc');
+const crypto = require('crypto');
+const nacl = require('tweetnacl');
+const { TextEncoder } = require('util');
+const { PublicKey } = require('@solana/web3.js');
+const { validateTelegramInitData } = require('../utils/telegramAuth');
 const { scanAndCreditUserDeposits } = require('../services/depositService');
+const { debit } = require('../services/ledgerService');
 const {
-  extractInitData,
-  getTelegramUserFromInitData
-} = require('../utils/telegram');
+  TELEGRAM_BOT_TOKEN,
+  MERCHANT_WALLET,
+  ALLOW_MANUAL_WALLET_LINK
+} = require('../config');
 
-function hasServerKey(req) {
-  return req.header('X-Server-Key') === SERVER_API_KEY;
+const NONCE_TTL_MS = 10 * 60 * 1000;
+
+function getTelegramInitData(req) {
+  return (
+    req.headers['x-telegram-init-data'] ||
+    req.body?.initData ||
+    req.query?.initData ||
+    ''
+  );
 }
 
-function parseAtomicAmount(value, field = 'amount') {
-  if (value === undefined || value === null || value === '') {
-    throw Object.assign(new Error(`${field} required`), { status: 400 });
+function normalizeAddress(address) {
+  if (!address || typeof address !== 'string') {
+    throw Object.assign(new Error('Wallet address is required'), { status: 400 });
   }
 
   try {
-    return BigInt(String(value));
+    const pubkey = new PublicKey(address.trim());
+    return pubkey.toBase58();
   } catch {
-    throw Object.assign(new Error(`${field} must be an integer string`), { status: 400 });
+    throw Object.assign(new Error('Invalid Solana wallet address'), { status: 400 });
   }
 }
 
-async function getUserByExternalId(prisma, externalId) {
-  return prisma.user.findUnique({
-    where: { externalId },
-    include: { wallet: true }
-  });
+function buildWalletLinkMessage({ externalId, telegramUserId, nonce }) {
+  return [
+    'Pay Blood Kraken wallet link',
+    `External ID: ${externalId}`,
+    `Telegram User ID: ${telegramUserId}`,
+    `Nonce: ${nonce}`,
+    'Sign this message to confirm ownership of this Solana wallet.',
+    'Only sign this message inside the official Pay Blood Kraken app.'
+  ].join('\n');
 }
 
-async function resolveAuthorizedUser(prisma, req, externalId = null) {
-  if (hasServerKey(req)) {
-    if (!externalId) {
-      throw Object.assign(new Error('externalId required'), { status: 400 });
-    }
-
-    const user = await getUserByExternalId(prisma, externalId);
-    if (!user || !user.wallet) {
-      throw Object.assign(new Error('user/wallet not found'), { status: 404 });
-    }
-
-    return user;
+async function getAuthorizedUser(prisma, req, externalId) {
+  if (!TELEGRAM_BOT_TOKEN) {
+    throw Object.assign(new Error('TELEGRAM_BOT_TOKEN is not configured'), { status: 500 });
   }
 
-  const tg = getTelegramUserFromInitData(extractInitData(req));
-  if (!tg) {
-    throw Object.assign(new Error('INVALID_TELEGRAM_AUTH'), { status: 401 });
+  if (!externalId || typeof externalId !== 'string') {
+    throw Object.assign(new Error('externalId is required'), { status: 400 });
   }
 
-  if (externalId) {
-    const user = await getUserByExternalId(prisma, externalId);
-    if (!user || !user.wallet) {
-      throw Object.assign(new Error('user/wallet not found'), { status: 404 });
-    }
-
-    if (user.telegramUserId !== tg.id) {
-      throw Object.assign(new Error('FORBIDDEN_FOR_THIS_ACCOUNT'), { status: 403 });
-    }
-
-    return user;
-  }
+  const initData = getTelegramInitData(req);
+  const { telegramUser } = validateTelegramInitData(initData, TELEGRAM_BOT_TOKEN);
 
   const user = await prisma.user.findUnique({
-    where: { telegramUserId: tg.id },
+    where: { externalId: externalId.trim() },
     include: { wallet: true }
   });
 
-  if (!user || !user.wallet) {
-    throw Object.assign(new Error('ACCOUNT_NOT_LINKED'), { status: 404 });
+  if (!user) {
+    throw Object.assign(new Error('User not found'), { status: 404 });
   }
 
-  return user;
+  if (!user.telegramUserId) {
+    throw Object.assign(new Error('Telegram is not linked to this account'), { status: 403 });
+  }
+
+  if (String(user.telegramUserId) !== String(telegramUser.id)) {
+    throw Object.assign(
+      new Error('This Telegram account cannot manage the selected externalId'),
+      { status: 403 }
+    );
+  }
+
+  if (!user.wallet) {
+    throw Object.assign(new Error('Wallet record not found'), { status: 500 });
+  }
+
+  return { appUser: user, telegramUser };
 }
 
 module.exports = ({ prisma }) => {
   const router = express.Router();
 
-  router.get('/config', async (_req, res, next) => {
+  router.get('/profile/:externalId', async (req, res, next) => {
     try {
-      let merchantTokenAccount = null;
+      const { appUser } = await getAuthorizedUser(prisma, req, req.params.externalId);
 
-      try {
-        merchantTokenAccount = await getMerchantTokenAccount();
-      } catch {
-        merchantTokenAccount = null;
-      }
+      const deposits = await prisma.deposit.findMany({
+        where: { userId: appUser.id },
+        orderBy: { createdAt: 'desc' },
+        take: 10
+      });
+
+      const withdrawals = await prisma.withdrawalRequest.findMany({
+        where: { userId: appUser.id },
+        orderBy: { createdAt: 'desc' },
+        take: 10
+      });
 
       res.json({
-        merchantWallet: MERCHANT_WALLET,
-        merchantTokenAccount,
-        blkrMint: BLKR_MINT,
-        blkrDecimals: BLKR_DECIMALS
+        ok: true,
+        profile: {
+          externalId: appUser.externalId,
+          steamId: appUser.steamId,
+          nickname: appUser.rustNickname,
+          telegramUserId: appUser.telegramUserId,
+          telegramUsername: appUser.telegramUsername,
+          solanaAddress: appUser.wallet?.solanaAddress || null,
+          solanaVerified: appUser.wallet?.solanaVerified || false,
+          walletVerifiedAt: appUser.wallet?.walletVerifiedAt || null,
+          balanceAtomic: appUser.wallet?.balanceAtomic || 0n,
+          merchantWallet: MERCHANT_WALLET,
+          allowManualWalletLink: ALLOW_MANUAL_WALLET_LINK
+        },
+        deposits,
+        withdrawals
       });
     } catch (e) {
       next(e);
     }
   });
 
-  router.get('/me', async (req, res, next) => {
+  router.post('/nonce', async (req, res, next) => {
     try {
-      const user = await resolveAuthorizedUser(prisma, req);
+      const { externalId } = req.body || {};
+      const { appUser, telegramUser } = await getAuthorizedUser(prisma, req, externalId);
+
+      const nonce = crypto.randomBytes(24).toString('hex');
+      const expiresAt = new Date(Date.now() + NONCE_TTL_MS);
+
+      await prisma.wallet.update({
+        where: { userId: appUser.id },
+        data: {
+          walletNonce: nonce,
+          walletNonceExpiresAt: expiresAt
+        }
+      });
+
+      const message = buildWalletLinkMessage({
+        externalId: appUser.externalId,
+        telegramUserId: String(telegramUser.id),
+        nonce
+      });
 
       res.json({
-        externalId: user.externalId,
-        steamId: user.steamId,
-        nickname: user.rustNickname,
-        telegramUserId: user.telegramUserId,
-        telegramUsername: user.telegramUsername,
-        solanaAddress: user.wallet.solanaAddress,
-        balanceAtomic: user.wallet.balanceAtomic
+        ok: true,
+        nonce,
+        expiresAt,
+        message
+      });
+    } catch (e) {
+      next(e);
+    }
+  });
+
+  router.post('/link/manual', async (req, res, next) => {
+    try {
+      if (!ALLOW_MANUAL_WALLET_LINK) {
+        return res.status(403).json({
+          ok: false,
+          error: 'Manual wallet linking is disabled'
+        });
+      }
+
+      const { externalId, address } = req.body || {};
+      const { appUser } = await getAuthorizedUser(prisma, req, externalId);
+      const normalizedAddress = normalizeAddress(address);
+
+      const existing = await prisma.wallet.findFirst({
+        where: { solanaAddress: normalizedAddress }
+      });
+
+      if (existing && existing.userId !== appUser.id) {
+        return res.status(409).json({
+          ok: false,
+          error: 'This wallet is already linked to another account'
+        });
+      }
+
+      const updated = await prisma.wallet.update({
+        where: { userId: appUser.id },
+        data: {
+          solanaAddress: normalizedAddress,
+          solanaVerified: false,
+          walletVerifiedAt: null,
+          walletNonce: null,
+          walletNonceExpiresAt: null
+        }
+      });
+
+      res.json({
+        ok: true,
+        mode: 'manual',
+        wallet: updated
       });
     } catch (e) {
       next(e);
@@ -126,37 +208,109 @@ module.exports = ({ prisma }) => {
 
   router.post('/link', async (req, res, next) => {
     try {
-      const { externalId, solanaAddress } = req.body || {};
+      const { externalId, address, signatureBase64 } = req.body || {};
+      const { appUser, telegramUser } = await getAuthorizedUser(prisma, req, externalId);
+      const normalizedAddress = normalizeAddress(address);
 
-      if (!solanaAddress) {
-        return res.status(400).json({ error: 'solanaAddress required' });
+      if (!signatureBase64 || typeof signatureBase64 !== 'string') {
+        return res.status(400).json({
+          ok: false,
+          error: 'signatureBase64 is required'
+        });
       }
 
-      if (!isValidBase58Address(solanaAddress)) {
-        return res.status(400).json({ error: 'INVALID_SOLANA_ADDRESS' });
-      }
-
-      const user = await resolveAuthorizedUser(prisma, req, externalId || null);
-
-      const existingWallet = await prisma.wallet.findFirst({
-        where: {
-          solanaAddress,
-          NOT: { userId: user.id }
-        }
+      const wallet = await prisma.wallet.findUnique({
+        where: { userId: appUser.id }
       });
 
-      if (existingWallet) {
-        return res.status(409).json({ error: 'SOLANA_ADDRESS_ALREADY_IN_USE' });
+      if (!wallet?.walletNonce || !wallet?.walletNonceExpiresAt) {
+        return res.status(400).json({
+          ok: false,
+          error: 'Wallet nonce was not requested'
+        });
       }
 
-      await prisma.wallet.update({
-        where: { userId: user.id },
-        data: { solanaAddress }
+      if (new Date(wallet.walletNonceExpiresAt).getTime() < Date.now()) {
+        return res.status(400).json({
+          ok: false,
+          error: 'Wallet nonce expired'
+        });
+      }
+
+      const existing = await prisma.wallet.findFirst({
+        where: { solanaAddress: normalizedAddress }
+      });
+
+      if (existing && existing.userId !== appUser.id) {
+        return res.status(409).json({
+          ok: false,
+          error: 'This wallet is already linked to another account'
+        });
+      }
+
+      const message = buildWalletLinkMessage({
+        externalId: appUser.externalId,
+        telegramUserId: String(telegramUser.id),
+        nonce: wallet.walletNonce
+      });
+
+      const messageBytes = new TextEncoder().encode(message);
+      const signatureBytes = Buffer.from(signatureBase64, 'base64');
+      const publicKey = new PublicKey(normalizedAddress);
+
+      const verified = nacl.sign.detached.verify(
+        messageBytes,
+        new Uint8Array(signatureBytes),
+        new Uint8Array(publicKey.toBytes())
+      );
+
+      if (!verified) {
+        return res.status(400).json({
+          ok: false,
+          error: 'Invalid wallet signature'
+        });
+      }
+
+      const updated = await prisma.wallet.update({
+        where: { userId: appUser.id },
+        data: {
+          solanaAddress: normalizedAddress,
+          solanaVerified: true,
+          walletVerifiedAt: new Date(),
+          walletNonce: null,
+          walletNonceExpiresAt: null
+        }
       });
 
       res.json({
         ok: true,
-        solanaAddress
+        mode: 'signed',
+        wallet: updated
+      });
+    } catch (e) {
+      next(e);
+    }
+  });
+
+  router.delete('/link', async (req, res, next) => {
+    try {
+      const { externalId } = req.body || {};
+      const { appUser } = await getAuthorizedUser(prisma, req, externalId);
+
+      const updated = await prisma.wallet.update({
+        where: { userId: appUser.id },
+        data: {
+          solanaAddress: null,
+          solanaVerified: false,
+          walletVerifiedAt: null,
+          walletNonce: null,
+          walletNonceExpiresAt: null
+        }
+      });
+
+      res.json({
+        ok: true,
+        wallet: updated
       });
     } catch (e) {
       next(e);
@@ -166,22 +320,20 @@ module.exports = ({ prisma }) => {
   router.post('/deposit/check', async (req, res, next) => {
     try {
       const { externalId } = req.body || {};
-      const user = await resolveAuthorizedUser(prisma, req, externalId || null);
+      const { appUser } = await getAuthorizedUser(prisma, req, externalId);
 
-      if (!user.wallet?.solanaAddress) {
-        return res.status(400).json({ error: 'USER_SOLANA_WALLET_NOT_LINKED' });
-      }
+      const user = await prisma.user.findUnique({
+        where: { id: appUser.id },
+        include: { wallet: true }
+      });
 
       const result = await scanAndCreditUserDeposits(prisma, user);
 
       res.json({
         ok: true,
-        balanceAtomic: result.balanceAtomic,
-        credited: result.deposits.map((d) => ({
-          id: d.id,
-          txSignature: d.txSignature,
-          amountAtomic: d.amountAtomic
-        }))
+        creditedCount: result.deposits.length,
+        deposits: result.deposits,
+        balanceAtomic: result.balanceAtomic
       });
     } catch (e) {
       next(e);
@@ -190,105 +342,60 @@ module.exports = ({ prisma }) => {
 
   router.post('/withdraw', async (req, res, next) => {
     try {
-      const { externalId, destination: rawDestination, amount } = req.body || {};
-      const amountAtomic = parseAtomicAmount(amount, 'amount');
+      const { externalId, amountAtomic } = req.body || {};
+      const { appUser } = await getAuthorizedUser(prisma, req, externalId);
 
-      if (amountAtomic <= 0n) {
-        return res.status(400).json({ error: 'amount must be > 0' });
-      }
+      const wallet = await prisma.wallet.findUnique({
+        where: { userId: appUser.id }
+      });
 
-      const user = await resolveAuthorizedUser(prisma, req, externalId || null);
-
-      let destination = null;
-      if (hasServerKey(req)) {
-        destination = rawDestination || user.wallet?.solanaAddress || null;
-      } else {
-        if (rawDestination && user.wallet?.solanaAddress && rawDestination !== user.wallet.solanaAddress) {
-          return res.status(400).json({ error: 'DESTINATION_MUST_MATCH_LINKED_WALLET' });
-        }
-        destination = user.wallet?.solanaAddress || null;
-      }
-
-      if (!destination) {
-        return res.status(400).json({ error: 'destination required' });
-      }
-
-      if (!isValidBase58Address(destination)) {
-        return res.status(400).json({ error: 'INVALID_DESTINATION' });
-      }
-
-      const wr = await prisma.$transaction(async (tx) => {
-        const wallet = await tx.wallet.findUnique({
-          where: { userId: user.id }
+      if (!wallet?.solanaAddress) {
+        return res.status(400).json({
+          error: 'Solana wallet is not linked'
         });
+      }
 
-        if (!wallet) {
-          throw new Error('Wallet not found');
-        }
-
-        if (BigInt(wallet.balanceAtomic) < amountAtomic) {
-          throw Object.assign(new Error('Insufficient funds'), { status: 400 });
-        }
-
-        await tx.wallet.update({
-          where: { userId: user.id },
-          data: {
-            balanceAtomic: { decrement: amountAtomic }
-          }
+      if (!wallet?.solanaVerified) {
+        return res.status(400).json({
+          error: 'Solana wallet is not verified'
         });
+      }
 
-        await tx.ledgerEntry.create({
-          data: {
-            userId: user.id,
-            type: 'WITHDRAWAL',
-            amountAtomic: amountAtomic * -1n,
-            reference: 'withdraw:request'
-          }
+      const amount = BigInt(String(amountAtomic || '0'));
+      if (amount <= 0n) {
+        return res.status(400).json({
+          error: 'amountAtomic must be > 0'
         });
+      }
 
-        return tx.withdrawalRequest.create({
+      await prisma.$transaction(async (tx) => {
+        await debit(
+          tx,
+          appUser.id,
+          amount,
+          { destination: wallet.solanaAddress },
+          'withdraw:request',
+          null,
+          'WITHDRAWAL'
+        );
+
+        await tx.withdrawalRequest.create({
           data: {
-            userId: user.id,
-            amountAtomic,
-            destination,
+            userId: appUser.id,
+            amountAtomic: amount,
+            destination: wallet.solanaAddress,
             status: 'REQUESTED'
           }
         });
       });
 
+      const updatedWallet = await prisma.wallet.findUnique({
+        where: { userId: appUser.id }
+      });
+
       res.json({
         ok: true,
-        requestId: wr.id,
-        destination
-      });
-    } catch (e) {
-      next(e);
-    }
-  });
-
-  router.get('/profile/:externalId', async (req, res, next) => {
-    try {
-      if (!hasServerKey(req)) {
-        return res.status(401).json({ error: 'UNAUTHORIZED' });
-      }
-
-      const user = await prisma.user.findUnique({
-        where: { externalId: req.params.externalId },
-        include: { wallet: true }
-      });
-
-      if (!user || !user.wallet) {
-        return res.status(404).json({ error: 'user/wallet not found' });
-      }
-
-      res.json({
-        externalId: user.externalId,
-        steamId: user.steamId,
-        nickname: user.rustNickname,
-        telegramLinked: Boolean(user.telegramUserId),
-        telegramUsername: user.telegramUsername,
-        solanaAddress: user.wallet.solanaAddress,
-        balanceAtomic: user.wallet.balanceAtomic
+        balanceAtomic: updatedWallet.balanceAtomic
       });
     } catch (e) {
       next(e);

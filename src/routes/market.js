@@ -70,6 +70,14 @@ module.exports = ({ prisma }) => {
     try {
       const list = await prisma.listing.findMany({
         where: { status: 'ACTIVE' },
+        include: {
+          user: {
+            select: {
+              externalId: true,
+              rustNickname: true
+            }
+          }
+        },
         orderBy: { createdAt: 'desc' },
         take: 100
       });

@@ -19,6 +19,10 @@ const MERCHANT_WALLET =
   process.env.MERCHANT_WALLET || 'Fzt7CcgxXeuKzf9jHR8FCpnepdujSbtT1fmWGHqWA5FT';
 const MERCHANT_TOKEN_ACCOUNT = process.env.MERCHANT_TOKEN_ACCOUNT || '';
 
+const ALLOW_MANUAL_WALLET_LINK = String(
+  process.env.ALLOW_MANUAL_WALLET_LINK || 'false'
+).toLowerCase() === 'true';
+
 module.exports = {
   PORT,
   SERVER_API_KEY,
@@ -31,5 +35,6 @@ module.exports = {
   BLKR_MINT,
   BLKR_DECIMALS,
   MERCHANT_WALLET,
-  MERCHANT_TOKEN_ACCOUNT
+  MERCHANT_TOKEN_ACCOUNT,
+  ALLOW_MANUAL_WALLET_LINK
 };

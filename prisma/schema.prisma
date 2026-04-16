@@ -49,44 +49,50 @@ enum TradeStatus {
 }
 
 model User {
-  id               Int           @id @default(autoincrement())
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
-  steamId          String        @unique
-  externalId       String        @unique
+  id               Int       @id @default(autoincrement())
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  steamId          String    @unique
+  externalId       String    @unique
   displayName      String?
   rustNickname     String?
-  telegramUserId   String?       @unique
+  telegramUserId   String?   @unique
   telegramUsername String?
 
-  wallet           Wallet?
-  listings         Listing[]
-  ledger           LedgerEntry[]
-  deposits         Deposit[]
-  withdrawals      WithdrawalRequest[]
-  salesTrades      Trade[]       @relation("salesTrades")
-  buyTrades        Trade[]       @relation("buyTrades")
-  adminActions     AdminAction[] @relation("adminActions")
+  wallet       Wallet?
+  ledger       LedgerEntry[]
+  deposits     Deposit[]
+  withdrawals  WithdrawalRequest[]
+  listings     Listing[]
+  salesTrades  Trade[]       @relation("salesTrades")
+  buyTrades    Trade[]       @relation("buyTrades")
+
+  @@index([telegramUserId])
+  @@index([externalId])
 }
 
 model Wallet {
-  id            Int     @id @default(autoincrement())
-  userId        Int     @unique
-  user          User    @relation(fields: [userId], references: [id])
-  solanaAddress String? @unique
-  balanceAtomic BigInt  @default(0)
+  id                   Int       @id @default(autoincrement())
+  userId               Int       @unique
+  user                 User      @relation(fields: [userId], references: [id])
+  solanaAddress        String?   @unique
+  solanaVerified       Boolean   @default(false)
+  walletNonce          String?
+  walletNonceExpiresAt DateTime?
+  walletVerifiedAt     DateTime?
+  balanceAtomic        BigInt    @default(0)
 }
 
 model LedgerEntry {
-  id            Int        @id @default(autoincrement())
-  createdAt     DateTime   @default(now())
-  userId        Int
-  user          User       @relation(fields: [userId], references: [id])
-  type          LedgerType
-  amountAtomic  BigInt
-  reference     String?
-  txSignature   String?
-  meta          Json?
+  id           Int        @id @default(autoincrement())
+  createdAt    DateTime   @default(now())
+  userId       Int
+  user         User       @relation(fields: [userId], references: [id])
+  type         LedgerType
+  amountAtomic BigInt
+  reference    String?
+  txSignature  String?
+  meta         Json?
 }
 
 model Deposit {
@@ -135,7 +141,7 @@ model Listing {
   expiresAt    DateTime?
   meta         Json?
 
-  trades       Trade[]
+  trades Trade[]
 }
 
 model Trade {
@@ -157,22 +163,27 @@ model Trade {
 }
 
 model PendingDelivery {
-  id        Int       @id @default(autoincrement())
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  tradeId   Int       @unique
-  trade     Trade     @relation(fields: [tradeId], references: [id])
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tradeId   Int      @unique
+  trade     Trade    @relation(fields: [tradeId], references: [id])
   serverId  String
   action    String
   payload   Json?
-  status    String    @default("PENDING") // PENDING|SENT|CONFIRMED|FAILED
+  status    String   @default("PENDING")
 }
 
 model AdminAction {
-  id          Int      @id @default(autoincrement())
-  createdAt   DateTime @default(now())
-  adminUserId Int
-  admin       User     @relation("adminActions", fields: [adminUserId], references: [id])
-  action      String
-  meta        Json?
+  id            Int      @id @default(autoincrement())
+  createdAt     DateTime @default(now())
+  actorType     String
+  actorId       String?
+  actorLabel    String?
+  action        String
+  targetType    String?
+  targetId      String?
+  ip            String?
+  userAgent     String?
+  meta          Json?
 }
