@@ -47,6 +47,27 @@ function buildWalletLinkMessage({ externalId, telegramUserId, nonce }) {
   ].join('\n');
 }
 
+function asObject(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+function toPublicWithdrawal(withdrawal) {
+  const meta = asObject(withdrawal?.meta);
+
+  return {
+    id: withdrawal.id,
+    amountAtomic: withdrawal.amountAtomic,
+    destination: withdrawal.destination,
+    status: withdrawal.status,
+    txSignature: withdrawal.txSignature,
+    createdAt: withdrawal.createdAt,
+    processedAt: withdrawal.processedAt,
+    meta: {
+      rejectReason: meta.rejectReason || null
+    }
+  };
+}
+
 async function getAuthorizedUser(prisma, req, externalId) {
   if (!TELEGRAM_BOT_TOKEN) {
     throw Object.assign(new Error('TELEGRAM_BOT_TOKEN is not configured'), { status: 500 });
@@ -99,11 +120,23 @@ module.exports = ({ prisma }) => {
         take: 10
       });
 
-      const withdrawals = await prisma.withdrawalRequest.findMany({
+      const withdrawalsRaw = await prisma.withdrawalRequest.findMany({
         where: { userId: appUser.id },
         orderBy: { createdAt: 'desc' },
-        take: 10
+        take: 10,
+        select: {
+          id: true,
+          amountAtomic: true,
+          destination: true,
+          status: true,
+          txSignature: true,
+          createdAt: true,
+          processedAt: true,
+          meta: true
+        }
       });
+
+      const withdrawals = withdrawalsRaw.map(toPublicWithdrawal);
 
       res.json({
         ok: true,

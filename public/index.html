@@ -708,6 +708,27 @@
         return value;
       }
 
+      function asObject(value) {
+        return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+      }
+
+      function getWithdrawStatusLabel(status) {
+        switch (status) {
+          case 'REQUESTED':
+            return 'Ожидает обработки';
+          case 'APPROVED':
+            return 'Одобрен';
+          case 'SENDING':
+            return 'В процессе отправки';
+          case 'SENT':
+            return 'Отправлен';
+          case 'REJECTED':
+            return 'Отклонён';
+          default:
+            return status || '—';
+        }
+      }
+
       function renderProfile(profileData) {
         if (!profileData) return;
 
@@ -774,19 +795,47 @@
         }
 
         for (const d of items) {
+          const meta = asObject(d.meta);
+
           const statusClass =
-            d.status === 'SENT' ? 'ok' :
-            d.status === 'REJECTED' ? 'bad' : 'warn';
+            d.status === 'SENT'
+              ? 'ok'
+              : d.status === 'REJECTED'
+                ? 'bad'
+                : 'warn';
+
+          const rejectReason = meta.rejectReason || '';
 
           const el = document.createElement('div');
           el.className = 'item';
           el.innerHTML = `
             <div class="item-head">
               <div class="item-title">${atomicToBLKR(d.amountAtomic)} BLKR</div>
-              <div class="pill ${statusClass}">${d.status}</div>
+              <div class="pill ${statusClass}">${getWithdrawStatusLabel(d.status)}</div>
             </div>
-            <div class="muted mono">${d.destination || ''}</div>
-            <div class="muted">${new Date(d.createdAt).toLocaleString()}</div>
+
+            <div class="muted" style="margin-top:8px;">Адрес назначения</div>
+            <div class="mono">${d.destination || '—'}</div>
+
+            <div class="muted" style="margin-top:8px;">Создано</div>
+            <div>${d.createdAt ? new Date(d.createdAt).toLocaleString() : '—'}</div>
+
+            <div class="muted" style="margin-top:8px;">Обработано</div>
+            <div>${d.processedAt ? new Date(d.processedAt).toLocaleString() : '—'}</div>
+
+            <div class="muted" style="margin-top:8px;">Tx Signature</div>
+            <div class="mono">${d.txSignature || '—'}</div>
+
+            ${
+              d.status === 'REJECTED'
+                ? `
+                  <div class="hint" style="margin-top:10px;">
+                    <b>Причина отказа:</b><br />
+                    ${rejectReason || 'Не указана'}
+                  </div>
+                `
+                : ''
+            }
           `;
           els.withdrawHistory.appendChild(el);
         }

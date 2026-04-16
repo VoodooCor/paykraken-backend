@@ -38,6 +38,13 @@ function mergeJson(base, patch) {
   };
 }
 
+function normalizeOptionalText(value, max = 1000) {
+  if (value == null) return null;
+  const text = String(value).trim();
+  if (!text) return null;
+  return text.slice(0, max);
+}
+
 const ALLOWED_TRANSITIONS = {
   REQUESTED: ['REQUESTED', 'APPROVED', 'SENDING', 'SENT', 'REJECTED'],
   APPROVED: ['APPROVED', 'SENDING', 'SENT', 'REJECTED'],
@@ -94,9 +101,25 @@ module.exports = ({ prisma }) => {
         return res.status(400).json({ error: 'invalid withdrawal id' });
       }
 
-      const { status, txSignature, meta } = req.body || {};
+      const {
+        status,
+        txSignature,
+        meta,
+        rejectReason,
+        adminComment
+      } = req.body || {};
+
       if (!['APPROVED', 'SENDING', 'SENT', 'REJECTED'].includes(status)) {
         return res.status(400).json({ error: 'invalid status' });
+      }
+
+      const normalizedRejectReason = normalizeOptionalText(rejectReason, 500);
+      const normalizedAdminComment = normalizeOptionalText(adminComment, 2000);
+
+      if (status === 'REJECTED' && !normalizedRejectReason) {
+        return res.status(400).json({
+          error: 'rejectReason is required for REJECTED status'
+        });
       }
 
       const actor = req.adminActor;
@@ -118,7 +141,9 @@ module.exports = ({ prisma }) => {
         }
 
         const previousStatus = wr.status;
+        const previousMeta = asObject(wr.meta);
         const allowed = ALLOWED_TRANSITIONS[wr.status] || [];
+
         if (!allowed.includes(status)) {
           throw Object.assign(
             new Error(`invalid transition: ${wr.status} -> ${status}`),
@@ -146,11 +171,48 @@ module.exports = ({ prisma }) => {
               amountAtomic: wr.amountAtomic,
               reference: `withdraw:${wr.id}:refund`,
               meta: {
-                reason: 'WITHDRAW_REJECTED'
+                reason: 'WITHDRAW_REJECTED',
+                rejectReason: normalizedRejectReason || null,
+                adminComment: normalizedAdminComment || null
               }
             }
           });
         }
+
+        const statusHistory = Array.isArray(previousMeta.statusHistory)
+          ? previousMeta.statusHistory
+          : [];
+
+        const historyEntry = {
+          at: new Date().toISOString(),
+          previousStatus,
+          newStatus: status,
+          actorType: actor.actorType,
+          actorId: actor.actorId,
+          actorLabel: actor.actorLabel,
+          txSignature: txSignature || null,
+          rejectReason: normalizedRejectReason,
+          adminComment: normalizedAdminComment
+        };
+
+        const nextMeta = mergeJson(previousMeta, {
+          ...asObject(meta),
+          lastAdminActionAt: new Date().toISOString(),
+          lastAdminActor: {
+            actorType: actor.actorType,
+            actorId: actor.actorId,
+            actorLabel: actor.actorLabel
+          },
+          rejectReason:
+            status === 'REJECTED'
+              ? normalizedRejectReason
+              : previousMeta.rejectReason || null,
+          adminComment:
+            normalizedAdminComment != null
+              ? normalizedAdminComment
+              : previousMeta.adminComment || null,
+          statusHistory: [...statusHistory, historyEntry]
+        });
 
         const updated = await tx.withdrawalRequest.update({
           where: { id },
@@ -158,7 +220,7 @@ module.exports = ({ prisma }) => {
             status,
             txSignature: txSignature || undefined,
             processedAt: new Date(),
-            meta: mergeJson(wr.meta, meta || {})
+            meta: nextMeta
           },
           include: {
             user: {
@@ -169,30 +231,27 @@ module.exports = ({ prisma }) => {
           }
         });
 
-        await tx.adminAction.create({
-          data: {
-            actorType: actor.actorType,
-            actorId: actor.actorId,
-            actorLabel: actor.actorLabel,
-            action: 'WITHDRAWAL_STATUS_CHANGED',
-            targetType: 'WITHDRAWAL',
-            targetId: String(updated.id),
-            ip: req.headers['x-forwarded-for']
-              ? String(req.headers['x-forwarded-for']).split(',')[0].trim()
-              : (req.ip || req.socket?.remoteAddress || null),
-            userAgent: req.headers['user-agent'] || null,
-            meta: {
-              withdrawalId: updated.id,
-              userId: updated.userId,
-              externalId: updated.user?.externalId || null,
-              previousStatus,
-              newStatus: status,
-              txSignature: txSignature || null,
-              refunded: shouldRefund,
-              amountAtomic: updated.amountAtomic?.toString?.() || String(updated.amountAtomic),
-              destination: updated.destination,
-              requestMetaPatch: meta || null
-            }
+        await createAdminAudit(tx, {
+          req,
+          actorType: actor.actorType,
+          actorId: actor.actorId,
+          actorLabel: actor.actorLabel,
+          action: 'WITHDRAWAL_STATUS_CHANGED',
+          targetType: 'WITHDRAWAL',
+          targetId: String(updated.id),
+          meta: {
+            withdrawalId: updated.id,
+            userId: updated.userId,
+            externalId: updated.user?.externalId || null,
+            previousStatus,
+            newStatus: status,
+            txSignature: txSignature || null,
+            refunded: shouldRefund,
+            amountAtomic: updated.amountAtomic?.toString?.() || String(updated.amountAtomic),
+            destination: updated.destination,
+            rejectReason: normalizedRejectReason,
+            adminComment: normalizedAdminComment,
+            requestMetaPatch: meta || null
           }
         });
 

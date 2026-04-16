@@ -102,6 +102,11 @@
         font-size: 14px;
       }
 
+      textarea {
+        min-height: 90px;
+        resize: vertical;
+      }
+
       button {
         border: none;
         border-radius: 12px;
@@ -218,6 +223,7 @@
         font-family: Consolas, monospace;
         word-break: break-all;
         font-size: 12px;
+        white-space: pre-wrap;
       }
 
       .actions {
@@ -260,6 +266,20 @@
         display: none !important;
       }
 
+      .subbox {
+        margin-top: 12px;
+        padding: 12px;
+        border-radius: 12px;
+        background: rgba(255,255,255,.03);
+        border: 1px solid var(--line);
+      }
+
+      .label {
+        font-size: 12px;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+
       @media (max-width: 900px) {
         .stats {
           grid-template-columns: 1fr 1fr;
@@ -282,7 +302,7 @@
       <div class="topbar">
         <div class="title">
           <h1>Admin Panel</h1>
-          <p>Withdrawals + Audit Log</p>
+          <p>Withdrawals + Audit Log + Reject Reason</p>
         </div>
         <div class="controls">
           <button class="btn-ghost" id="saveKeyBtn">Сохранить ключ</button>
@@ -294,11 +314,11 @@
       <div class="card">
         <div class="row">
           <div style="flex:2;min-width:280px;">
-            <div class="muted" style="margin-bottom:6px;">X-Admin-Key</div>
+            <div class="label">X-Admin-Key</div>
             <input id="adminKeyInput" placeholder="Введите ADMIN_API_KEY" />
           </div>
           <div style="flex:1;min-width:180px;">
-            <div class="muted" style="margin-bottom:6px;">Фильтр статуса заявок</div>
+            <div class="label">Фильтр статуса заявок</div>
             <select id="statusFilter">
               <option value="open">Открытые</option>
               <option value="all">Все</option>
@@ -310,11 +330,11 @@
             </select>
           </div>
           <div style="flex:1;min-width:180px;">
-            <div class="muted" style="margin-bottom:6px;">Фильтр audit targetType</div>
+            <div class="label">Audit targetType</div>
             <input id="auditTargetTypeInput" placeholder="Например WITHDRAWAL" value="WITHDRAWAL" />
           </div>
           <div style="flex:1;min-width:180px;">
-            <div class="muted" style="margin-bottom:6px;">Фильтр audit targetId</div>
+            <div class="label">Audit targetId</div>
             <input id="auditTargetIdInput" placeholder="Например 15" />
           </div>
         </div>
@@ -325,7 +345,7 @@
         <button class="tab-btn" data-tab="audit">Audit Log</button>
       </div>
 
-      <div class="stats" id="statsBox">
+      <div class="stats">
         <div class="stat">
           <div class="muted">Всего загружено</div>
           <div class="num" id="statTotal">0</div>
@@ -402,6 +422,10 @@
         }
       }
 
+      function safeMeta(value) {
+        return value && typeof value === 'object' ? value : {};
+      }
+
       async function adminApi(path, options = {}) {
         const key = els.adminKeyInput.value.trim();
         if (!key) {
@@ -449,6 +473,43 @@
         return String(status || '').toLowerCase();
       }
 
+      function renderStatusHistory(meta) {
+        const history = Array.isArray(meta.statusHistory) ? meta.statusHistory : [];
+        if (!history.length) {
+          return `<div class="muted">История статусов пуста</div>`;
+        }
+
+        return history
+          .slice()
+          .reverse()
+          .map((h) => {
+            return `
+              <div class="subbox">
+                <div class="kv">
+                  <div class="muted">Время</div>
+                  <div>${h.at ? new Date(h.at).toLocaleString() : '—'}</div>
+
+                  <div class="muted">Переход</div>
+                  <div>${h.previousStatus || '—'} → ${h.newStatus || '—'}</div>
+
+                  <div class="muted">Actor</div>
+                  <div>${h.actorLabel || h.actorType || '—'} <span class="mono">${h.actorId || ''}</span></div>
+
+                  <div class="muted">Tx Signature</div>
+                  <div class="mono">${h.txSignature || '—'}</div>
+
+                  <div class="muted">Reject Reason</div>
+                  <div>${h.rejectReason || '—'}</div>
+
+                  <div class="muted">Admin Comment</div>
+                  <div class="mono">${h.adminComment || '—'}</div>
+                </div>
+              </div>
+            `;
+          })
+          .join('');
+      }
+
       function renderWithdrawals(items) {
         els.withdrawList.innerHTML = '';
         renderStats(items);
@@ -463,6 +524,8 @@
         }
 
         items.forEach((w) => {
+          const meta = safeMeta(w.meta);
+
           const card = document.createElement('div');
           card.className = 'withdraw-item';
 
@@ -499,11 +562,27 @@
 
               <div class="muted">Processed At</div>
               <div>${w.processedAt ? new Date(w.processedAt).toLocaleString() : '—'}</div>
+
+              <div class="muted">Reject Reason</div>
+              <div>${meta.rejectReason || '—'}</div>
+
+              <div class="muted">Admin Comment</div>
+              <div class="mono">${meta.adminComment || '—'}</div>
             </div>
 
-            <div style="margin-top:12px;">
-              <div class="muted" style="margin-bottom:6px;">Tx Signature / Hash</div>
+            <div class="subbox">
+              <div class="label">Tx Signature / Hash</div>
               <input id="txsig-${w.id}" placeholder="Вставьте tx signature при статусе SENT" value="${w.txSignature || ''}" />
+            </div>
+
+            <div class="subbox">
+              <div class="label">Причина отказа (обязательно для REJECTED)</div>
+              <input id="reject-${w.id}" placeholder="Например: Suspicious activity" value="${meta.rejectReason || ''}" />
+            </div>
+
+            <div class="subbox">
+              <div class="label">Комментарий админа</div>
+              <textarea id="comment-${w.id}" placeholder="Внутренний комментарий администратора">${meta.adminComment || ''}</textarea>
             </div>
 
             <div class="actions">
@@ -511,7 +590,12 @@
               <button class="btn-primary action-btn" data-id="${w.id}" data-status="SENDING">SENDING</button>
               <button class="btn-success action-btn" data-id="${w.id}" data-status="SENT">SENT</button>
               <button class="btn-danger action-btn" data-id="${w.id}" data-status="REJECTED">REJECTED</button>
-              <button class="btn-ghost view-audit-btn" data-id="${w.id}">История</button>
+              <button class="btn-ghost view-audit-btn" data-id="${w.id}">История audit</button>
+            </div>
+
+            <div class="subbox">
+              <div class="label">История статусов</div>
+              ${renderStatusHistory(meta)}
             </div>
           `;
 
@@ -522,10 +606,16 @@
           btn.addEventListener('click', async () => {
             const id = btn.dataset.id;
             const status = btn.dataset.status;
-            const txInput = document.getElementById(`txsig-${id}`);
-            const txSignature = txInput ? txInput.value.trim() : '';
+            const txSignature = document.getElementById(`txsig-${id}`)?.value.trim() || '';
+            const rejectReason = document.getElementById(`reject-${id}`)?.value.trim() || '';
+            const adminComment = document.getElementById(`comment-${id}`)?.value.trim() || '';
 
             try {
+              if (status === 'REJECTED' && !rejectReason) {
+                setStatus(`Для REJECTED укажи причину отказа в заявке #${id}`);
+                return;
+              }
+
               setStatus(`Обновляем заявку #${id} -> ${status}...`);
 
               const payload = {
@@ -538,6 +628,14 @@
 
               if (txSignature) {
                 payload.txSignature = txSignature;
+              }
+
+              if (rejectReason) {
+                payload.rejectReason = rejectReason;
+              }
+
+              if (adminComment) {
+                payload.adminComment = adminComment;
               }
 
               const data = await adminApi(`/api/admin/withdrawals/${id}/status`, {
@@ -577,6 +675,8 @@
         }
 
         items.forEach((item) => {
+          const meta = safeMeta(item.meta);
+
           const card = document.createElement('div');
           card.className = 'audit-item';
 
@@ -611,8 +711,17 @@
               <div class="muted">User-Agent</div>
               <div class="mono">${item.userAgent || '—'}</div>
 
+              <div class="muted">Previous → New</div>
+              <div>${meta.previousStatus || '—'} → ${meta.newStatus || '—'}</div>
+
+              <div class="muted">Reject Reason</div>
+              <div>${meta.rejectReason || '—'}</div>
+
+              <div class="muted">Admin Comment</div>
+              <div class="mono">${meta.adminComment || '—'}</div>
+
               <div class="muted">Meta</div>
-              <div class="mono">${JSON.stringify(item.meta || {}, null, 2)}</div>
+              <div class="mono">${JSON.stringify(meta, null, 2)}</div>
             </div>
           `;
 
