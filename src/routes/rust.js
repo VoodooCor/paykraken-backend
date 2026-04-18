@@ -3,7 +3,9 @@ const { generateExternalId } = require('../utils/id');
 const {
   SERVER_API_KEY,
   TELEGRAM_MINI_APP_URL,
-  TELEGRAM_BOT_USERNAME
+  TELEGRAM_BOT_USERNAME,
+  MERCHANT_WALLET,
+  ALLOW_MANUAL_WALLET_LINK
 } = require('../config');
 
 function requireServerKey(req, res, next) {
@@ -37,6 +39,23 @@ function mergeJson(base, patch) {
   return {
     ...asObject(base),
     ...asObject(patch)
+  };
+}
+
+function toPublicWithdrawal(withdrawal) {
+  const meta = asObject(withdrawal?.meta);
+
+  return {
+    id: withdrawal.id,
+    amountAtomic: withdrawal.amountAtomic,
+    destination: withdrawal.destination,
+    status: withdrawal.status,
+    txSignature: withdrawal.txSignature,
+    createdAt: withdrawal.createdAt,
+    processedAt: withdrawal.processedAt,
+    meta: {
+      rejectReason: meta.rejectReason || null
+    }
   };
 }
 
@@ -114,6 +133,70 @@ module.exports = ({ prisma }) => {
     }
   });
 
+  router.get('/wallet/profile/:externalId', requireServerKey, async (req, res, next) => {
+    try {
+      const externalId = String(req.params.externalId || '').trim();
+      if (!externalId) {
+        return res.status(400).json({ error: 'externalId required' });
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { externalId },
+        include: { wallet: true }
+      });
+
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      const deposits = await prisma.deposit.findMany({
+        where: { userId: user.id },
+        orderBy: { createdAt: 'desc' },
+        take: 10
+      });
+
+      const withdrawalsRaw = await prisma.withdrawalRequest.findMany({
+        where: { userId: user.id },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        select: {
+          id: true,
+          amountAtomic: true,
+          destination: true,
+          status: true,
+          txSignature: true,
+          createdAt: true,
+          processedAt: true,
+          meta: true
+        }
+      });
+
+      const withdrawals = withdrawalsRaw.map(toPublicWithdrawal);
+
+      res.json({
+        ok: true,
+        profile: {
+          externalId: user.externalId,
+          steamId: user.steamId,
+          nickname: user.rustNickname,
+          telegramUserId: user.telegramUserId,
+          telegramUsername: user.telegramUsername,
+          telegramLinked: Boolean(user.telegramUserId),
+          solanaAddress: user.wallet?.solanaAddress || null,
+          solanaVerified: user.wallet?.solanaVerified || false,
+          walletVerifiedAt: user.wallet?.walletVerifiedAt || null,
+          balanceAtomic: user.wallet?.balanceAtomic || 0n,
+          merchantWallet: MERCHANT_WALLET,
+          allowManualWalletLink: ALLOW_MANUAL_WALLET_LINK
+        },
+        deposits,
+        withdrawals
+      });
+    } catch (e) {
+      next(e);
+    }
+  });
+
   router.post('/market/listings', requireServerKey, async (req, res, next) => {
     try {
       const {
@@ -169,6 +252,81 @@ module.exports = ({ prisma }) => {
     }
   });
 
+  router.post('/market/listings/:id/cancel', requireServerKey, async (req, res, next) => {
+    try {
+      const listingId = Number.parseInt(req.params.id, 10);
+      if (!Number.isInteger(listingId) || listingId <= 0) {
+        return res.status(400).json({ error: 'invalid listing id' });
+      }
+
+      const { steamId, serverId } = req.body || {};
+      if (!steamId) {
+        return res.status(400).json({ error: 'steamId required' });
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { steamId }
+      });
+
+      if (!user) {
+        return res.status(404).json({ error: 'user not found' });
+      }
+
+      const listing = await prisma.listing.findUnique({
+        where: { id: listingId },
+        include: {
+          user: {
+            select: {
+              externalId: true,
+              rustNickname: true,
+              steamId: true
+            }
+          }
+        }
+      });
+
+      if (!listing) {
+        return res.status(404).json({ error: 'listing not found' });
+      }
+
+      if (listing.userId !== user.id) {
+        return res.status(403).json({ error: 'listing does not belong to this steamId' });
+      }
+
+      if (listing.status !== 'ACTIVE') {
+        return res.status(400).json({ error: 'listing is not active' });
+      }
+
+      const updated = await prisma.listing.update({
+        where: { id: listingId },
+        data: {
+          status: 'CANCELED',
+          meta: mergeJson(listing.meta, {
+            canceledBy: 'rust',
+            canceledAt: new Date().toISOString(),
+            canceledFromServerId: serverId || null
+          })
+        },
+        include: {
+          user: {
+            select: {
+              externalId: true,
+              rustNickname: true,
+              steamId: true
+            }
+          }
+        }
+      });
+
+      res.json({
+        ok: true,
+        listing: updated
+      });
+    } catch (e) {
+      next(e);
+    }
+  });
+
   router.get('/deliveries/pending', requireServerKey, async (_req, res, next) => {
     try {
       const list = await prisma.pendingDelivery.findMany({
@@ -190,7 +348,7 @@ module.exports = ({ prisma }) => {
       }
 
       const { status, details } = req.body || {};
-      if (!['SENT', 'CONFIRMED', 'FAILED'].includes(status)) {
+      if (!['PENDING', 'PROCESSING', 'SENT', 'CONFIRMED', 'FAILED'].includes(status)) {
         return res.status(400).json({ error: 'invalid status' });
       }
 
@@ -220,7 +378,7 @@ module.exports = ({ prisma }) => {
           }
         });
 
-        if (status === 'SENT') {
+        if (status === 'PENDING' || status === 'PROCESSING' || status === 'SENT') {
           return { delivery: updatedDelivery };
         }
 

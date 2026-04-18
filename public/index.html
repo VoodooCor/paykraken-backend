@@ -115,6 +115,14 @@
         flex-wrap: wrap;
       }
 
+      .row-between {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
       .btn {
         border: none;
         border-radius: 14px;
@@ -187,6 +195,7 @@
         border: 1px solid var(--line);
         border-radius: 14px;
         padding: 12px;
+        transition: border-color .35s ease, box-shadow .35s ease, background .35s ease;
       }
 
       .item-head {
@@ -366,6 +375,104 @@
         gap: 10px;
       }
 
+      .refresh-indicator {
+        font-size: 12px;
+        color: var(--muted);
+        padding: 6px 10px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: rgba(255,255,255,.03);
+      }
+
+      .changed-highlight {
+        border-color: rgba(60,207,145,.7) !important;
+        box-shadow: 0 0 0 1px rgba(60,207,145,.18), 0 0 22px rgba(60,207,145,.14);
+        background: rgba(60,207,145,.07);
+      }
+
+      .toast-stack {
+        position: fixed;
+        top: max(12px, env(safe-area-inset-top));
+        right: 12px;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        width: min(360px, calc(100vw - 24px));
+        pointer-events: none;
+      }
+
+      .toast {
+        pointer-events: auto;
+        border-radius: 16px;
+        padding: 12px 14px;
+        border: 1px solid var(--line);
+        box-shadow: var(--shadow);
+        color: white;
+        background: rgba(24,33,43,.96);
+        transform: translateY(-8px);
+        opacity: 0;
+        animation: toastIn .22s ease forwards;
+      }
+
+      .toast.hide {
+        animation: toastOut .22s ease forwards;
+      }
+
+      .toast.success {
+        border-color: rgba(60,207,145,.35);
+        background: linear-gradient(180deg, rgba(60,207,145,.16), rgba(24,33,43,.96));
+      }
+
+      .toast.warning {
+        border-color: rgba(247,184,75,.35);
+        background: linear-gradient(180deg, rgba(247,184,75,.16), rgba(24,33,43,.96));
+      }
+
+      .toast.danger {
+        border-color: rgba(255,92,122,.35);
+        background: linear-gradient(180deg, rgba(255,92,122,.16), rgba(24,33,43,.96));
+      }
+
+      .toast.info {
+        border-color: rgba(46,166,255,.35);
+        background: linear-gradient(180deg, rgba(46,166,255,.16), rgba(24,33,43,.96));
+      }
+
+      .toast-title {
+        font-size: 13px;
+        font-weight: 800;
+        margin-bottom: 4px;
+      }
+
+      .toast-text {
+        font-size: 13px;
+        line-height: 1.4;
+        color: #e8eef5;
+      }
+
+      @keyframes toastIn {
+        from {
+          opacity: 0;
+          transform: translateY(-8px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes toastOut {
+        from {
+          opacity: 1;
+          transform: translateY(0);
+        }
+        to {
+          opacity: 0;
+          transform: translateY(-8px);
+        }
+      }
+
       @media (max-width: 760px) {
         .hero,
         .grid-2,
@@ -383,10 +490,18 @@
           align-items: flex-start;
           flex-direction: column;
         }
+
+        .toast-stack {
+          right: 12px;
+          left: 12px;
+          width: auto;
+        }
       }
     </style>
   </head>
   <body>
+    <div class="toast-stack" id="toastStack"></div>
+
     <div class="app">
       <div class="topbar">
         <div class="brand">
@@ -405,7 +520,10 @@
 
       <div class="hero">
         <div class="card balance-box">
-          <div class="muted">Баланс кошелька</div>
+          <div class="row-between">
+            <div class="muted">Баланс кошелька</div>
+            <div class="refresh-indicator" id="lastRefreshView">Последнее обновление: —</div>
+          </div>
           <div class="big-balance" id="balanceView">0 BLKR</div>
           <div class="row" style="margin-top:14px;">
             <button class="btn btn-primary" id="checkDepositBtn">Я оплатил</button>
@@ -539,7 +657,10 @@
             <div class="list" id="depositHistory"></div>
           </div>
           <div class="card">
-            <h3 style="margin-top:0;">История выводов</h3>
+            <div class="row-between" style="margin-bottom:10px;">
+              <h3 style="margin:0;">История выводов</h3>
+              <div class="small muted">Новый статус подсвечивается зелёным</div>
+            </div>
             <div class="list" id="withdrawHistory"></div>
           </div>
         </div>
@@ -565,6 +686,10 @@
       const tgUser = tg?.initDataUnsafe?.user || null;
       const startParam = tg?.initDataUnsafe?.start_param || '';
 
+      const PROFILE_POLL_MS = 15000;
+      const HIGHLIGHT_TTL_MS = 12000;
+      const TOAST_TTL_MS = 5000;
+
       const state = {
         externalId: startParam || '',
         profile: null,
@@ -573,7 +698,13 @@
         phantomPublicKey: null,
         phantomProvider: null,
         linkNonce: null,
-        linkMessage: null
+        linkMessage: null,
+        profilePollTimer: null,
+        isProfileLoading: false,
+        lastProfileRefreshAt: null,
+        previousWithdrawStatusMap: {},
+        changedWithdrawIds: {},
+        shownToastKeys: {}
       };
 
       const els = {
@@ -592,7 +723,9 @@
         marketList: document.getElementById('marketList'),
         depositHistory: document.getElementById('depositHistory'),
         withdrawHistory: document.getElementById('withdrawHistory'),
-        walletVerifiedBox: document.getElementById('walletVerifiedBox')
+        walletVerifiedBox: document.getElementById('walletVerifiedBox'),
+        lastRefreshView: document.getElementById('lastRefreshView'),
+        toastStack: document.getElementById('toastStack')
       };
 
       els.externalIdInput.value = state.externalId;
@@ -645,6 +778,104 @@
 
       function getCurrentAppUrl() {
         return window.location.href;
+      }
+
+      function formatTime(date) {
+        if (!date) return '—';
+        try {
+          return new Date(date).toLocaleTimeString();
+        } catch {
+          return '—';
+        }
+      }
+
+      function updateLastRefreshIndicator(date = null) {
+        state.lastProfileRefreshAt = date || null;
+        els.lastRefreshView.textContent = `Последнее обновление: ${formatTime(state.lastProfileRefreshAt)}`;
+      }
+
+      function getWithdrawStatusLabel(status) {
+        switch (status) {
+          case 'REQUESTED':
+            return 'Ожидает обработки';
+          case 'APPROVED':
+            return 'Одобрен';
+          case 'SENDING':
+            return 'В процессе отправки';
+          case 'SENT':
+            return 'Отправлен';
+          case 'REJECTED':
+            return 'Отклонён';
+          default:
+            return status || '—';
+        }
+      }
+
+      function getToastTypeByWithdrawStatus(status) {
+        if (status === 'APPROVED' || status === 'SENT') return 'success';
+        if (status === 'REJECTED') return 'danger';
+        if (status === 'SENDING') return 'warning';
+        return 'info';
+      }
+
+      function showToast({ title, text, type = 'info', ttl = TOAST_TTL_MS }) {
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.innerHTML = `
+          <div class="toast-title">${title || 'Уведомление'}</div>
+          <div class="toast-text">${text || ''}</div>
+        `;
+
+        els.toastStack.appendChild(toast);
+
+        const hide = () => {
+          toast.classList.add('hide');
+          setTimeout(() => {
+            toast.remove();
+          }, 220);
+        };
+
+        setTimeout(hide, ttl);
+      }
+
+      function cleanupChangedWithdrawIds() {
+        const now = Date.now();
+        for (const [id, ts] of Object.entries(state.changedWithdrawIds)) {
+          if (!ts || now - ts > HIGHLIGHT_TTL_MS) {
+            delete state.changedWithdrawIds[id];
+          }
+        }
+      }
+
+      function markChangedWithdrawals(items) {
+        const nextMap = {};
+        const now = Date.now();
+
+        for (const item of items) {
+          const key = String(item.id);
+          const prevStatus = state.previousWithdrawStatusMap[key];
+          const nextStatus = item.status;
+
+          if (prevStatus && prevStatus !== nextStatus) {
+            state.changedWithdrawIds[key] = now;
+
+            const toastKey = `${key}:${prevStatus}->${nextStatus}`;
+            if (!state.shownToastKeys[toastKey]) {
+              state.shownToastKeys[toastKey] = now;
+
+              showToast({
+                type: getToastTypeByWithdrawStatus(nextStatus),
+                title: `Вывод #${item.id}`,
+                text: `Статус изменён: ${getWithdrawStatusLabel(prevStatus)} → ${getWithdrawStatusLabel(nextStatus)}`
+              });
+            }
+          }
+
+          nextMap[key] = nextStatus;
+        }
+
+        state.previousWithdrawStatusMap = nextMap;
+        cleanupChangedWithdrawIds();
       }
 
       async function copyText(value, successMessage = 'Скопировано') {
@@ -712,23 +943,6 @@
         return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
       }
 
-      function getWithdrawStatusLabel(status) {
-        switch (status) {
-          case 'REQUESTED':
-            return 'Ожидает обработки';
-          case 'APPROVED':
-            return 'Одобрен';
-          case 'SENDING':
-            return 'В процессе отправки';
-          case 'SENT':
-            return 'Отправлен';
-          case 'REJECTED':
-            return 'Отклонён';
-          default:
-            return status || '—';
-        }
-      }
-
       function renderProfile(profileData) {
         if (!profileData) return;
 
@@ -787,6 +1001,7 @@
       }
 
       function renderWithdrawals(items) {
+        markChangedWithdrawals(items);
         els.withdrawHistory.innerHTML = '';
 
         if (!items.length) {
@@ -794,8 +1009,11 @@
           return;
         }
 
+        cleanupChangedWithdrawIds();
+
         for (const d of items) {
           const meta = asObject(d.meta);
+          const key = String(d.id);
 
           const statusClass =
             d.status === 'SENT'
@@ -805,9 +1023,10 @@
                 : 'warn';
 
           const rejectReason = meta.rejectReason || '';
+          const changed = Boolean(state.changedWithdrawIds[key]);
 
           const el = document.createElement('div');
-          el.className = 'item';
+          el.className = `item${changed ? ' changed-highlight' : ''}`;
           el.innerHTML = `
             <div class="item-head">
               <div class="item-title">${atomicToBLKR(d.amountAtomic)} BLKR</div>
@@ -832,6 +1051,16 @@
                   <div class="hint" style="margin-top:10px;">
                     <b>Причина отказа:</b><br />
                     ${rejectReason || 'Не указана'}
+                  </div>
+                `
+                : ''
+            }
+
+            ${
+              changed
+                ? `
+                  <div class="good-box" style="margin-top:10px;">
+                    Статус вывода обновлён: <b>${getWithdrawStatusLabel(d.status)}</b>
                   </div>
                 `
                 : ''
@@ -885,7 +1114,7 @@
               });
 
               setStatus(data);
-              await loadProfile();
+              await loadProfile({ showStatus: false, force: true });
               await loadMarket();
             } catch (e) {
               setStatus(`Ошибка покупки: ${e.message}`);
@@ -905,21 +1134,45 @@
         }
       }
 
-      async function loadProfile() {
+      async function loadProfile(options = {}) {
+        const {
+          showStatus = true,
+          force = false
+        } = options;
+
+        if (state.isProfileLoading && !force) {
+          return null;
+        }
+
         try {
           const externalId = getExternalId();
           if (!externalId) {
-            setStatus('Укажи External ID');
+            if (showStatus) {
+              setStatus('Укажи External ID');
+            }
             return null;
           }
 
+          state.isProfileLoading = true;
+
           const data = await api(`/api/wallet/profile/${encodeURIComponent(externalId)}`);
           renderProfile(data);
-          setStatus('Профиль загружен');
+          updateLastRefreshIndicator(new Date());
+
+          if (showStatus) {
+            setStatus('Профиль загружен');
+          }
+
           return data;
         } catch (e) {
-          setStatus(`Ошибка загрузки профиля: ${e.message}`);
+          if (showStatus) {
+            setStatus(`Ошибка загрузки профиля: ${e.message}`);
+          } else {
+            console.error('Profile auto-refresh error:', e);
+          }
           return null;
+        } finally {
+          state.isProfileLoading = false;
         }
       }
 
@@ -949,7 +1202,7 @@
           });
 
           setStatus(data);
-          await loadProfile();
+          await loadProfile({ showStatus: false, force: true });
         } catch (e) {
           setStatus(`Ошибка привязки Telegram: ${e.message}`);
         }
@@ -1044,7 +1297,7 @@
           });
 
           setStatus(result);
-          await loadProfile();
+          await loadProfile({ showStatus: false, force: true });
         } catch (e) {
           setStatus(`Ошибка подписи/привязки кошелька: ${e.message}`);
         }
@@ -1068,7 +1321,7 @@
           els.solanaWalletInput.value = '';
 
           setStatus(data);
-          await loadProfile();
+          await loadProfile({ showStatus: false, force: true });
         } catch (e) {
           setStatus(`Ошибка отвязки кошелька: ${e.message}`);
         }
@@ -1093,7 +1346,7 @@
 
               if (Number(data.creditedCount || 0) > 0) {
                 setStatus(`Пополнение найдено и зачислено.\n${JSON.stringify(data, null, 2)}`);
-                await loadProfile();
+                await loadProfile({ showStatus: false, force: true });
                 return;
               }
 
@@ -1113,7 +1366,7 @@
             }
           }
 
-          await loadProfile();
+          await loadProfile({ showStatus: false, force: true });
         } catch (e) {
           setStatus(`Ошибка проверки пополнения: ${e.message}`);
         }
@@ -1143,9 +1396,33 @@
           });
 
           setStatus(data);
-          await loadProfile();
+          await loadProfile({ showStatus: false, force: true });
         } catch (e) {
           setStatus(`Ошибка вывода: ${e.message}`);
+        }
+      }
+
+      function startProfilePolling() {
+        stopProfilePolling();
+
+        state.profilePollTimer = setInterval(async () => {
+          if (document.hidden) {
+            return;
+          }
+
+          const externalId = getExternalId();
+          if (!externalId) {
+            return;
+          }
+
+          await loadProfile({ showStatus: false });
+        }, PROFILE_POLL_MS);
+      }
+
+      function stopProfilePolling() {
+        if (state.profilePollTimer) {
+          clearInterval(state.profilePollTimer);
+          state.profilePollTimer = null;
         }
       }
 
@@ -1185,12 +1462,39 @@
       document.getElementById('openExternalBtn2').addEventListener('click', openExternalBrowser);
       document.getElementById('refreshAllBtn').addEventListener('click', async () => {
         await loadMe();
-        await loadProfile();
+        await loadProfile({ showStatus: true, force: true });
         await loadMarket();
       });
       document.getElementById('openWalletTabBtn').addEventListener('click', () => activateTab('wallet'));
 
+      els.externalIdInput.addEventListener('change', async () => {
+        state.externalId = els.externalIdInput.value.trim();
+        state.previousWithdrawStatusMap = {};
+        state.changedWithdrawIds = {};
+        state.shownToastKeys = {};
+        updateLastRefreshIndicator(null);
+
+        if (state.externalId) {
+          await loadProfile({ showStatus: true, force: true });
+        }
+      });
+
+      document.addEventListener('visibilitychange', async () => {
+        if (!document.hidden) {
+          const externalId = getExternalId();
+          if (externalId) {
+            await loadProfile({ showStatus: false, force: true });
+          }
+        }
+      });
+
+      window.addEventListener('beforeunload', () => {
+        stopProfilePolling();
+      });
+
       (async function init() {
+        updateLastRefreshIndicator(null);
+
         try {
           await loadMe();
         } catch {}
@@ -1198,7 +1502,7 @@
         await loadMarket();
 
         if (state.externalId) {
-          await loadProfile();
+          await loadProfile({ showStatus: true, force: true });
         } else {
           setStatus('Укажи External ID и привяжи Telegram аккаунт');
         }
@@ -1214,6 +1518,8 @@
             }
           } catch {}
         }
+
+        startProfilePolling();
       })();
     </script>
   </body>

@@ -2,6 +2,7 @@ const express = require('express');
 const crypto = require('crypto');
 const { ADMIN_API_KEY, SERVER_API_KEY } = require('../config');
 const { createAdminAudit } = require('../services/adminAuditService');
+const { sendWithdrawalStatusNotification } = require('../utils/telegram');
 
 function hashKey(value) {
   return crypto.createHash('sha256').update(String(value)).digest('hex').slice(0, 16);
@@ -258,9 +259,24 @@ module.exports = ({ prisma }) => {
         return updated;
       });
 
+      let notification = null;
+
+      if (['APPROVED', 'SENT', 'REJECTED'].includes(result.status)) {
+        try {
+          notification = await sendWithdrawalStatusNotification(result.user, result);
+        } catch (notifyError) {
+          console.error('Telegram withdrawal notification error:', notifyError);
+          notification = {
+            ok: false,
+            error: notifyError.message || 'notification failed'
+          };
+        }
+      }
+
       res.json({
         ok: true,
-        withdrawal: result
+        withdrawal: result,
+        notification
       });
     } catch (e) {
       next(e);

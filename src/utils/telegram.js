@@ -87,8 +87,141 @@ function getTelegramUserFromInitData(initData) {
   };
 }
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function atomicToBLKR(value, decimals = 9) {
+  try {
+    const s = String(value ?? '0');
+    const neg = s.startsWith('-');
+    const raw = neg ? s.slice(1) : s;
+    const pad = raw.padStart(decimals + 1, '0');
+    const i = pad.slice(0, -decimals);
+    let f = pad.slice(-decimals).replace(/0+$/, '');
+    return `${neg ? '-' : ''}${i}${f ? '.' + f : ''}`;
+  } catch {
+    return '0';
+  }
+}
+
+async function telegramApi(method, payload) {
+  if (!TELEGRAM_BOT_TOKEN) {
+    throw new Error('TELEGRAM_BOT_TOKEN not set');
+  }
+
+  const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/${method}`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  });
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok || !data?.ok) {
+    throw new Error(`Telegram API error: ${JSON.stringify(data || { status: response.status })}`);
+  }
+
+  return data.result;
+}
+
+async function sendTelegramMessage(chatId, text, extra = {}) {
+  return telegramApi('sendMessage', {
+    chat_id: String(chatId),
+    text,
+    parse_mode: 'HTML',
+    disable_web_page_preview: true,
+    ...extra
+  });
+}
+
+function buildWithdrawalStatusMessage(withdrawal, user) {
+  const amount = atomicToBLKR(withdrawal.amountAtomic);
+  const destination = escapeHtml(withdrawal.destination || '—');
+  const txSignature = escapeHtml(withdrawal.txSignature || '—');
+  const externalId = escapeHtml(user?.externalId || '—');
+  const nickname = escapeHtml(user?.rustNickname || user?.displayName || 'Игрок');
+
+  const meta = withdrawal?.meta && typeof withdrawal.meta === 'object' ? withdrawal.meta : {};
+  const rejectReason = escapeHtml(meta.rejectReason || 'Не указана');
+
+  if (withdrawal.status === 'APPROVED') {
+    return [
+      `✅ <b>Заявка на вывод одобрена</b>`,
+      ``,
+      `Игрок: <b>${nickname}</b>`,
+      `External ID: <code>${externalId}</code>`,
+      `Сумма: <b>${amount} BLKR</b>`,
+      `Адрес: <code>${destination}</code>`,
+      ``,
+      `Статус: <b>APPROVED</b>`
+    ].join('\n');
+  }
+
+  if (withdrawal.status === 'SENT') {
+    return [
+      `🚀 <b>Вывод отправлен</b>`,
+      ``,
+      `Игрок: <b>${nickname}</b>`,
+      `External ID: <code>${externalId}</code>`,
+      `Сумма: <b>${amount} BLKR</b>`,
+      `Адрес: <code>${destination}</code>`,
+      `Tx Signature: <code>${txSignature}</code>`,
+      ``,
+      `Статус: <b>SENT</b>`
+    ].join('\n');
+  }
+
+  if (withdrawal.status === 'REJECTED') {
+    return [
+      `❌ <b>Заявка на вывод отклонена</b>`,
+      ``,
+      `Игрок: <b>${nickname}</b>`,
+      `External ID: <code>${externalId}</code>`,
+      `Сумма: <b>${amount} BLKR</b>`,
+      `Адрес: <code>${destination}</code>`,
+      `Причина: <b>${rejectReason}</b>`,
+      ``,
+      `Статус: <b>REJECTED</b>`
+    ].join('\n');
+  }
+
+  return [
+    `ℹ️ <b>Обновление статуса вывода</b>`,
+    ``,
+    `Сумма: <b>${amount} BLKR</b>`,
+    `Статус: <b>${escapeHtml(withdrawal.status || '—')}</b>`
+  ].join('\n');
+}
+
+async function sendWithdrawalStatusNotification(user, withdrawal) {
+  if (!user?.telegramUserId) {
+    return { ok: false, skipped: true, reason: 'telegramUserId missing' };
+  }
+
+  if (!['APPROVED', 'SENT', 'REJECTED'].includes(withdrawal?.status)) {
+    return { ok: false, skipped: true, reason: 'status not supported' };
+  }
+
+  const text = buildWithdrawalStatusMessage(withdrawal, user);
+  const result = await sendTelegramMessage(user.telegramUserId, text);
+  return { ok: true, result };
+}
+
 module.exports = {
   extractInitData,
   verifyTelegramInitData,
-  getTelegramUserFromInitData
+  getTelegramUserFromInitData,
+  sendTelegramMessage,
+  sendWithdrawalStatusNotification,
+  buildWithdrawalStatusMessage,
+  atomicToBLKR,
+  escapeHtml
 };
