@@ -508,7 +508,7 @@
           <div class="logo">PK</div>
           <div>
             <h1>Pay Blood Kraken</h1>
-            <p>Rust × Telegram × Solana BLKR</p>
+            <p>Rust — Telegram — Solana BLKR</p>
           </div>
         </div>
         <div class="row">
@@ -689,6 +689,7 @@
       const PROFILE_POLL_MS = 15000;
       const HIGHLIGHT_TTL_MS = 12000;
       const TOAST_TTL_MS = 5000;
+      const BLKR_DECIMALS = 9;
 
       const state = {
         externalId: startParam || '',
@@ -745,7 +746,7 @@
         return `${addr.slice(0, 6)}...${addr.slice(-6)}`;
       }
 
-      function atomicToBLKR(value, decimals = 9) {
+      function atomicToBLKR(value, decimals = BLKR_DECIMALS) {
         try {
           const s = String(value ?? '0');
           const neg = s.startsWith('-');
@@ -1082,7 +1083,7 @@
           const card = document.createElement('div');
           card.className = 'market-card';
           card.innerHTML = `
-            <div class="market-icon">${item.type === 'PRIVILEGE' ? '👑' : '📦'}</div>
+            <div class="market-icon">${item.type === 'PRIVILEGE' ? '🔑' : '📦'}</div>
             <div class="item-title">${item.title}</div>
             <div class="muted">Тип: ${item.type}</div>
             <div class="muted">Количество: ${item.quantity}</div>

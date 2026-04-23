@@ -384,6 +384,8 @@
     </div>
 
     <script>
+      const BLKR_DECIMALS = 9;
+
       const els = {
         adminKeyInput: document.getElementById('adminKeyInput'),
         statusFilter: document.getElementById('statusFilter'),
@@ -408,7 +410,7 @@
           typeof message === 'string' ? message : JSON.stringify(message, null, 2);
       }
 
-      function atomicToBLKR(value, decimals = 9) {
+      function atomicToBLKR(value, decimals = BLKR_DECIMALS) {
         try {
           const s = String(value ?? '0');
           const neg = s.startsWith('-');
