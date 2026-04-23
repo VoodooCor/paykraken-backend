@@ -5,7 +5,6 @@ const { TextEncoder } = require('util');
 const { PublicKey } = require('@solana/web3.js');
 const { validateTelegramInitData } = require('../utils/telegramAuth');
 const { scanAndCreditUserDeposits } = require('../services/depositService');
-const { debit } = require('../services/ledgerService');
 const { getMerchantTokenAccount } = require('../utils/solana_rpc');
 const {
   TELEGRAM_BOT_TOKEN,
@@ -437,7 +436,7 @@ module.exports = ({ prisma }) => {
       if (amount < MIN_WITHDRAW_ATOMIC) {
         return res.status(400).json({
           ok: false,
-          error: `Minimum withdraw is 1 BLKR`
+          error: 'Minimum withdraw is 1 BLKR'
         });
       }
 
@@ -461,15 +460,25 @@ module.exports = ({ prisma }) => {
           throw Object.assign(new Error('Insufficient funds'), { status: 400 });
         }
 
-        await debit(
-          tx,
-          appUser.id,
-          amount,
-          { destination: freshWallet.solanaAddress },
-          'withdraw:request',
-          null,
-          'WITHDRAWAL'
-        );
+        await tx.wallet.update({
+          where: { userId: appUser.id },
+          data: {
+            balanceAtomic: { decrement: amount }
+          }
+        });
+
+        await tx.ledgerEntry.create({
+          data: {
+            userId: appUser.id,
+            type: 'WITHDRAWAL',
+            amountAtomic: amount * -1n,
+            reference: 'withdraw:request',
+            txSignature: null,
+            meta: {
+              destination: freshWallet.solanaAddress
+            }
+          }
+        });
 
         const withdrawal = await tx.withdrawalRequest.create({
           data: {
@@ -479,7 +488,20 @@ module.exports = ({ prisma }) => {
             status: 'REQUESTED',
             meta: {
               requestedFrom: 'miniapp',
-              requestedAt: new Date().toISOString()
+              requestedAt: new Date().toISOString(),
+              statusHistory: [
+                {
+                  at: new Date().toISOString(),
+                  previousStatus: null,
+                  newStatus: 'REQUESTED',
+                  actorType: 'USER',
+                  actorId: String(appUser.telegramUserId || ''),
+                  actorLabel: appUser.telegramUsername || appUser.externalId || 'user',
+                  txSignature: null,
+                  rejectReason: null,
+                  adminComment: null
+                }
+              ]
             }
           }
         });
