@@ -1,7 +1,8 @@
 const crypto = require('crypto');
 const {
   TELEGRAM_BOT_TOKEN,
-  TELEGRAM_AUTH_MAX_AGE_SECONDS
+  TELEGRAM_AUTH_MAX_AGE_SECONDS,
+  BLKR_DECIMALS
 } = require('../config');
 
 function extractInitData(req) {
@@ -94,7 +95,7 @@ function escapeHtml(value) {
     .replace(/>/g, '&gt;');
 }
 
-function atomicToBLKR(value, decimals = 9) {
+function atomicToBLKR(value, decimals = BLKR_DECIMALS) {
   try {
     const s = String(value ?? '0');
     const neg = s.startsWith('-');

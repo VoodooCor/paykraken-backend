@@ -10,10 +10,12 @@ const { getMerchantTokenAccount } = require('../utils/solana_rpc');
 const {
   TELEGRAM_BOT_TOKEN,
   MERCHANT_WALLET,
-  ALLOW_MANUAL_WALLET_LINK
+  ALLOW_MANUAL_WALLET_LINK,
+  BLKR_DECIMALS
 } = require('../config');
 
 const NONCE_TTL_MS = 10 * 60 * 1000;
+const MIN_WITHDRAW_ATOMIC = 10n ** BigInt(BLKR_DECIMALS); // 1 BLKR
 
 function getTelegramInitData(req) {
   return (
@@ -67,6 +69,37 @@ function toPublicWithdrawal(withdrawal) {
       rejectReason: meta.rejectReason || null
     }
   };
+}
+
+function parseAtomicAmount(value, fieldName = 'amountAtomic') {
+  if (value === undefined || value === null || value === '') {
+    throw Object.assign(new Error(`${fieldName} is required`), { status: 400 });
+  }
+
+  const raw = String(value).trim();
+
+  if (!/^\d+$/.test(raw)) {
+    throw Object.assign(
+      new Error(`${fieldName} must be a positive integer string`),
+      { status: 400 }
+    );
+  }
+
+  let parsed;
+  try {
+    parsed = BigInt(raw);
+  } catch {
+    throw Object.assign(
+      new Error(`${fieldName} is too large or invalid`),
+      { status: 400 }
+    );
+  }
+
+  if (parsed <= 0n) {
+    throw Object.assign(new Error(`${fieldName} must be > 0`), { status: 400 });
+  }
+
+  return parsed;
 }
 
 async function getAuthorizedUser(prisma, req, externalId) {
@@ -387,51 +420,91 @@ module.exports = ({ prisma }) => {
 
       if (!wallet?.solanaAddress) {
         return res.status(400).json({
+          ok: false,
           error: 'Solana wallet is not linked'
         });
       }
 
       if (!wallet?.solanaVerified) {
         return res.status(400).json({
+          ok: false,
           error: 'Solana wallet is not verified'
         });
       }
 
-      const amount = BigInt(String(amountAtomic || '0'));
-      if (amount <= 0n) {
+      const amount = parseAtomicAmount(amountAtomic, 'amountAtomic');
+
+      if (amount < MIN_WITHDRAW_ATOMIC) {
         return res.status(400).json({
-          error: 'amountAtomic must be > 0'
+          ok: false,
+          error: `Minimum withdraw is 1 BLKR`
         });
       }
 
-      await prisma.$transaction(async (tx) => {
+      if (wallet.solanaAddress === MERCHANT_WALLET) {
+        return res.status(400).json({
+          ok: false,
+          error: 'Withdraw to merchant wallet is not allowed'
+        });
+      }
+
+      const result = await prisma.$transaction(async (tx) => {
+        const freshWallet = await tx.wallet.findUnique({
+          where: { userId: appUser.id }
+        });
+
+        if (!freshWallet) {
+          throw Object.assign(new Error('Wallet not found'), { status: 500 });
+        }
+
+        if (BigInt(freshWallet.balanceAtomic) < amount) {
+          throw Object.assign(new Error('Insufficient funds'), { status: 400 });
+        }
+
         await debit(
           tx,
           appUser.id,
           amount,
-          { destination: wallet.solanaAddress },
+          { destination: freshWallet.solanaAddress },
           'withdraw:request',
           null,
           'WITHDRAWAL'
         );
 
-        await tx.withdrawalRequest.create({
+        const withdrawal = await tx.withdrawalRequest.create({
           data: {
             userId: appUser.id,
             amountAtomic: amount,
-            destination: wallet.solanaAddress,
-            status: 'REQUESTED'
+            destination: freshWallet.solanaAddress,
+            status: 'REQUESTED',
+            meta: {
+              requestedFrom: 'miniapp',
+              requestedAt: new Date().toISOString()
+            }
           }
         });
-      });
 
-      const updatedWallet = await prisma.wallet.findUnique({
-        where: { userId: appUser.id }
+        const updatedWallet = await tx.wallet.findUnique({
+          where: { userId: appUser.id }
+        });
+
+        return {
+          withdrawal,
+          wallet: updatedWallet
+        };
       });
 
       res.json({
         ok: true,
-        balanceAtomic: updatedWallet.balanceAtomic
+        message: 'Withdrawal request created',
+        withdrawal: {
+          id: result.withdrawal.id,
+          amountAtomic: result.withdrawal.amountAtomic,
+          destination: result.withdrawal.destination,
+          status: result.withdrawal.status,
+          createdAt: result.withdrawal.createdAt
+        },
+        balanceAtomic: result.wallet?.balanceAtomic || 0n
       });
     } catch (e) {
       next(e);

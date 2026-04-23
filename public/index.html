@@ -178,12 +178,6 @@
         gap: 14px;
       }
 
-      .grid-3 {
-        display: grid;
-        grid-template-columns: 1fr 1fr 1fr;
-        gap: 14px;
-      }
-
       .list {
         display: flex;
         flex-direction: column;
@@ -476,7 +470,6 @@
       @media (max-width: 760px) {
         .hero,
         .grid-2,
-        .grid-3,
         .market-grid,
         .two-col-inline {
           grid-template-columns: 1fr;
@@ -526,7 +519,7 @@
           </div>
           <div class="big-balance" id="balanceView">0 BLKR</div>
           <div class="row" style="margin-top:14px;">
-            <button class="btn btn-primary" id="checkDepositBtn">Я оплатил</button>
+            <button class="btn btn-primary" id="checkDepositBtn">Я пополнил</button>
             <button class="btn btn-success" id="openWalletTabBtn">Кошелёк</button>
           </div>
           <div class="status-box" id="statusBox">Загрузка...</div>
@@ -563,18 +556,18 @@
             </div>
 
             <div class="hint" style="margin-top:12px;">
-              Если вы открыли приложение из Rust по ссылке бота, ваш External ID мог подставиться автоматически.
+              Если вы открыли приложение по ссылке из Rust или из бота, ваш External ID мог подставиться автоматически.
             </div>
           </div>
 
           <div class="card">
             <div class="list">
               <div class="item">
-                <div class="muted">Ник Rust</div>
+                <div class="muted">Ник в Rust</div>
                 <div id="nicknameView">—</div>
               </div>
               <div class="item">
-                <div class="muted">Telegram статус</div>
+                <div class="muted">Статус Telegram</div>
                 <div id="telegramLinkedView">—</div>
               </div>
               <div class="item">
@@ -590,7 +583,7 @@
         <h2 class="section-title">Магазин</h2>
         <div class="card">
           <div class="row" style="margin-bottom:12px;">
-            <button class="btn btn-ghost" id="reloadMarketBtn">Обновить лоты</button>
+            <button class="btn btn-ghost" id="reloadMarketBtn">Обновить товары</button>
           </div>
           <div class="market-grid" id="marketList"></div>
         </div>
@@ -624,7 +617,7 @@
             </div>
 
             <div class="hint" id="walletFallbackBox">
-              Внутри Telegram WebView Phantom может не открываться. Если подключение не найдено — откройте Mini App во внешнем браузере, где установлен Phantom.
+              Внутри Telegram WebView Phantom может не открываться. Если кошелёк не находится — откройте Mini App во внешнем браузере, где установлен Phantom.
               <div class="browser-actions">
                 <button class="btn btn-warning" id="openExternalBtn2">Открыть в браузере</button>
                 <button class="btn btn-ghost" id="copyAppLinkBtn2">Скопировать ссылку</button>
@@ -638,10 +631,13 @@
 
           <div class="card">
             <div class="field">
-              <div class="label">Сумма вывода в atomic</div>
-              <input id="withdrawAmountInput" placeholder="Например 1000000000" />
+              <div class="label">Сумма вывода в BLKR</div>
+              <input id="withdrawAmountInput" placeholder="Например 500 или 1250.5" />
             </div>
-            <div class="row">
+            <div class="muted" style="margin-top:8px;">
+              Введите обычную сумму в BLKR. Система сама переведёт её в atomic.
+            </div>
+            <div class="row" style="margin-top:12px;">
               <button class="btn btn-success" id="withdrawBtn">Запросить вывод</button>
               <button class="btn btn-primary" id="checkDepositBtn2">Проверить пополнение</button>
             </div>
@@ -758,6 +754,34 @@
         } catch {
           return '0';
         }
+      }
+
+      function blkrToAtomic(value, decimals = BLKR_DECIMALS) {
+        const raw = String(value ?? '').trim().replace(',', '.');
+
+        if (!raw) {
+          throw new Error('Укажи сумму вывода');
+        }
+
+        if (!/^\d+(\.\d+)?$/.test(raw)) {
+          throw new Error('Некорректная сумма');
+        }
+
+        const [intPart, fracPartRaw = ''] = raw.split('.');
+
+        if (fracPartRaw.length > decimals) {
+          throw new Error(`Слишком много знаков после точки. Максимум: ${decimals}`);
+        }
+
+        const fracPart = fracPartRaw.padEnd(decimals, '0');
+        const normalized = `${intPart}${fracPart}`.replace(/^0+/, '') || '0';
+        const amountAtomic = BigInt(normalized);
+
+        if (amountAtomic <= 0n) {
+          throw new Error('Сумма должна быть больше 0');
+        }
+
+        return amountAtomic.toString();
       }
 
       function arrayBufferToBase64(bufferLike) {
@@ -961,7 +985,7 @@
 
         let walletText = 'Не привязан';
         if (p.solanaAddress) {
-          walletText = `${shortAddress(p.solanaAddress)}${p.solanaVerified ? ' ✓ verified' : ' ⚠ not verified'}`;
+          walletText = `${shortAddress(p.solanaAddress)}${p.solanaVerified ? ' ✓ подтверждён' : ' ⚠ не подтверждён'}`;
         }
 
         els.walletShortView.textContent = walletText;
@@ -1075,7 +1099,7 @@
         els.marketList.innerHTML = '';
 
         if (!listings.length) {
-          els.marketList.innerHTML = `<div class="item"><div class="muted">Нет активных лотов</div></div>`;
+          els.marketList.innerHTML = `<div class="item"><div class="muted">Нет активных товаров</div></div>`;
           return;
         }
 
@@ -1184,7 +1208,7 @@
           renderMarket(state.listings);
           return data;
         } catch (e) {
-          setStatus(`Ошибка загрузки маркета: ${e.message}`);
+          setStatus(`Ошибка загрузки магазина: ${e.message}`);
           return null;
         }
       }
@@ -1376,17 +1400,19 @@
       async function requestWithdraw() {
         try {
           const externalId = getExternalId();
-          const amountAtomic = els.withdrawAmountInput.value.trim();
+          const amountInput = els.withdrawAmountInput.value.trim();
 
           if (!externalId) {
             setStatus('Укажи External ID');
             return;
           }
 
-          if (!amountAtomic) {
-            setStatus('Укажи сумму вывода в atomic');
+          if (!amountInput) {
+            setStatus('Укажи сумму вывода в BLKR');
             return;
           }
+
+          const amountAtomic = blkrToAtomic(amountInput);
 
           const data = await api('/api/wallet/withdraw', {
             method: 'POST',
@@ -1396,8 +1422,10 @@
             })
           });
 
-          setStatus(data);
+          setStatus(`Заявка на вывод создана на ${amountInput} BLKR`);
+          els.withdrawAmountInput.value = '';
           await loadProfile({ showStatus: false, force: true });
+          return data;
         } catch (e) {
           setStatus(`Ошибка вывода: ${e.message}`);
         }
@@ -1451,7 +1479,7 @@
       document.getElementById('withdrawBtn').addEventListener('click', requestWithdraw);
       document.getElementById('reloadMarketBtn').addEventListener('click', loadMarket);
       document.getElementById('copyMerchantBtn').addEventListener('click', () =>
-        copyText(els.merchantWalletInput.value || '', 'Адрес кошелька для пополнения скопирован')
+        copyText(els.merchantWalletInput.value || '', 'Адрес для пополнения скопирован')
       );
       document.getElementById('copyAppLinkBtn').addEventListener('click', () =>
         copyText(getCurrentAppUrl(), 'Ссылка Mini App скопирована')

@@ -302,11 +302,11 @@
       <div class="topbar">
         <div class="title">
           <h1>Admin Panel</h1>
-          <p>Withdrawals + Audit Log + Reject Reason</p>
+          <p>Заявки на вывод, audit log, причины отказа и tx hash</p>
         </div>
         <div class="controls">
           <button class="btn-ghost" id="saveKeyBtn">Сохранить ключ</button>
-          <button class="btn-ghost" id="testAuditBtn">Test Audit</button>
+          <button class="btn-ghost" id="testAuditBtn">Тест audit</button>
           <button class="btn-primary" id="reloadBtn">Обновить</button>
         </div>
       </div>
@@ -500,10 +500,10 @@
                   <div class="muted">Tx Signature</div>
                   <div class="mono">${h.txSignature || '—'}</div>
 
-                  <div class="muted">Reject Reason</div>
+                  <div class="muted">Причина отказа</div>
                   <div>${h.rejectReason || '—'}</div>
 
-                  <div class="muted">Admin Comment</div>
+                  <div class="muted">Комментарий админа</div>
                   <div class="mono">${h.adminComment || '—'}</div>
                 </div>
               </div>
@@ -565,10 +565,10 @@
               <div class="muted">Processed At</div>
               <div>${w.processedAt ? new Date(w.processedAt).toLocaleString() : '—'}</div>
 
-              <div class="muted">Reject Reason</div>
+              <div class="muted">Причина отказа</div>
               <div>${meta.rejectReason || '—'}</div>
 
-              <div class="muted">Admin Comment</div>
+              <div class="muted">Комментарий админа</div>
               <div class="mono">${meta.adminComment || '—'}</div>
             </div>
 
@@ -615,6 +615,11 @@
             try {
               if (status === 'REJECTED' && !rejectReason) {
                 setStatus(`Для REJECTED укажи причину отказа в заявке #${id}`);
+                return;
+              }
+
+              if (status === 'SENT' && !txSignature) {
+                setStatus(`Для SENT укажи tx signature в заявке #${id}`);
                 return;
               }
 
@@ -716,10 +721,10 @@
               <div class="muted">Previous → New</div>
               <div>${meta.previousStatus || '—'} → ${meta.newStatus || '—'}</div>
 
-              <div class="muted">Reject Reason</div>
+              <div class="muted">Причина отказа</div>
               <div>${meta.rejectReason || '—'}</div>
 
-              <div class="muted">Admin Comment</div>
+              <div class="muted">Комментарий админа</div>
               <div class="mono">${meta.adminComment || '—'}</div>
 
               <div class="muted">Meta</div>
