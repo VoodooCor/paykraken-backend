@@ -7,7 +7,6 @@ const { BLKR_MINT } = require('../config');
 
 function normalizePubkey(value) {
   if (!value) return null;
-
   if (typeof value === 'string') return value;
 
   if (typeof value === 'object') {
@@ -34,126 +33,95 @@ function getTokenAmountAtomic(tokenAmount) {
   return BigInt(String(raw));
 }
 
-function logTxDebug(sig, parsedTx, merchantTokenAccount) {
-  try {
-    console.log('--- DEPOSIT DEBUG START ---');
-    console.log('signature:', sig);
-    console.log('merchantTokenAccount:', merchantTokenAccount);
-    console.log('BLKR_MINT:', BLKR_MINT);
-    console.log('slot:', parsedTx?.slot);
-    console.log('blockTime:', parsedTx?.blockTime);
+function collectAllParsedInstructions(parsedTx) {
+  const result = [];
 
-    const instructions = parsedTx?.transaction?.message?.instructions || [];
-    console.log('instructionCount:', instructions.length);
-
-    instructions.forEach((ix, idx) => {
-      console.log(`instruction[${idx}] program:`, ix?.program || ix?.programId || null);
-      console.log(`instruction[${idx}] parsed:`, JSON.stringify(ix?.parsed || null, null, 2));
-    });
-
-    const pre = parsedTx?.meta?.preTokenBalances || [];
-    const post = parsedTx?.meta?.postTokenBalances || [];
-
-    console.log('preTokenBalances:', JSON.stringify(pre, null, 2));
-    console.log('postTokenBalances:', JSON.stringify(post, null, 2));
-
-    const merchantPre = pre.find(
-      (b) =>
-        accountPubkeyByIndex(parsedTx, b.accountIndex) === merchantTokenAccount &&
-        (!BLKR_MINT || b.mint === BLKR_MINT)
-    );
-
-    const merchantPost = post.find(
-      (b) =>
-        accountPubkeyByIndex(parsedTx, b.accountIndex) === merchantTokenAccount &&
-        (!BLKR_MINT || b.mint === BLKR_MINT)
-    );
-
-    console.log('merchantPre:', JSON.stringify(merchantPre || null, null, 2));
-    console.log('merchantPost:', JSON.stringify(merchantPost || null, null, 2));
-
-    const preAmt = getTokenAmountAtomic(merchantPre?.uiTokenAmount);
-    const postAmt = getTokenAmountAtomic(merchantPost?.uiTokenAmount);
-    console.log('merchantPreAtomic:', preAmt.toString());
-    console.log('merchantPostAtomic:', postAmt.toString());
-    console.log('merchantDiffAtomic:', (postAmt - preAmt).toString());
-
-    console.log('--- DEPOSIT DEBUG END ---');
-  } catch (e) {
-    console.error('DEPOSIT DEBUG LOG ERROR:', e);
+  const outer = parsedTx?.transaction?.message?.instructions || [];
+  for (const ix of outer) {
+    result.push(ix);
   }
+
+  const innerGroups = parsedTx?.meta?.innerInstructions || [];
+  for (const group of innerGroups) {
+    for (const ix of group.instructions || []) {
+      result.push(ix);
+    }
+  }
+
+  return result;
 }
 
-function extractDepositFromInstructions(parsedTx, merchantTokenAccount) {
-  const instructions = parsedTx?.transaction?.message?.instructions || [];
+function getOwnerByTokenAccountFromBalances(parsedTx, tokenAccount) {
+  if (!tokenAccount) return null;
 
-  for (const ix of instructions) {
-    const parsed = ix?.parsed;
-    if (!parsed || parsed.type !== 'transferChecked') continue;
+  const balances = [
+    ...(parsedTx?.meta?.preTokenBalances || []),
+    ...(parsedTx?.meta?.postTokenBalances || [])
+  ];
 
-    const info = parsed.info || {};
-    const mint = normalizePubkey(info.mint);
-    const destination = normalizePubkey(info.destination);
-    const source = normalizePubkey(info.source);
-    const authority = normalizePubkey(info.authority || info.owner);
-    const tokenAmount = info.tokenAmount || {};
-
-    console.log('transferChecked candidate:', {
-      mint,
-      destination,
-      source,
-      authority,
-      tokenAmount
-    });
-
-    if (BLKR_MINT && mint !== BLKR_MINT) continue;
-    if (destination !== merchantTokenAccount) continue;
-
-    const amountAtomic = getTokenAmountAtomic(tokenAmount);
-    if (amountAtomic <= 0n) continue;
-
-    return {
-      amountAtomic,
-      sourceTokenAccount: source,
-      sourceOwner: authority,
-      parser: 'instruction.transferChecked'
-    };
-  }
-
-  for (const ix of instructions) {
-    const parsed = ix?.parsed;
-    if (!parsed || parsed.type !== 'transfer') continue;
-
-    const info = parsed.info || {};
-    const mint = normalizePubkey(info.mint);
-    const destination = normalizePubkey(info.destination);
-    const source = normalizePubkey(info.source);
-    const authority = normalizePubkey(info.authority || info.owner);
-    const amountRaw = info.amount;
-
-    console.log('transfer candidate:', {
-      mint,
-      destination,
-      source,
-      authority,
-      amountRaw
-    });
-
-    if (BLKR_MINT && mint && mint !== BLKR_MINT) continue;
-    if (destination !== merchantTokenAccount) continue;
-
-    const amountAtomic = amountRaw ? BigInt(String(amountRaw)) : 0n;
-    if (amountAtomic <= 0n) continue;
-
-    return {
-      amountAtomic,
-      sourceTokenAccount: source,
-      sourceOwner: authority,
-      parser: 'instruction.transfer'
-    };
+  for (const b of balances) {
+    const acc = accountPubkeyByIndex(parsedTx, b.accountIndex);
+    if (acc === tokenAccount) {
+      return normalizePubkey(b.owner) || null;
+    }
   }
 
   return null;
+}
+
+function extractDepositCandidates(parsedTx, merchantTokenAccount) {
+  const instructions = collectAllParsedInstructions(parsedTx);
+  const candidates = [];
+
+  for (const ix of instructions) {
+    const parsed = ix?.parsed;
+    if (!parsed) continue;
+
+    if (parsed.type === 'transferChecked') {
+      const info = parsed.info || {};
+      const mint = normalizePubkey(info.mint);
+      const destination = normalizePubkey(info.destination);
+      const source = normalizePubkey(info.source);
+      const authority = normalizePubkey(info.authority || info.owner);
+      const amountAtomic = getTokenAmountAtomic(info.tokenAmount);
+
+      if (destination !== merchantTokenAccount) continue;
+      if (BLKR_MINT && mint !== BLKR_MINT) continue;
+      if (amountAtomic <= 0n) continue;
+
+      candidates.push({
+        parser: 'instruction.transferChecked',
+        mint,
+        amountAtomic,
+        sourceTokenAccount: source,
+        sourceOwner: authority || getOwnerByTokenAccountFromBalances(parsedTx, source)
+      });
+    }
+
+    if (parsed.type === 'transfer') {
+      const info = parsed.info || {};
+      const mint = normalizePubkey(info.mint);
+      const destination = normalizePubkey(info.destination);
+      const source = normalizePubkey(info.source);
+      const authority = normalizePubkey(info.authority || info.owner);
+      const amountRaw = info.amount;
+      const amountAtomic = amountRaw ? BigInt(String(amountRaw)) : 0n;
+
+      if (destination !== merchantTokenAccount) continue;
+      if (BLKR_MINT && mint && mint !== BLKR_MINT) continue;
+      if (amountAtomic <= 0n) continue;
+
+      candidates.push({
+        parser: 'instruction.transfer',
+        mint: mint || BLKR_MINT || null,
+        amountAtomic,
+        sourceTokenAccount: source,
+        sourceOwner: authority || getOwnerByTokenAccountFromBalances(parsedTx, source)
+      });
+    }
+  }
+
+  return candidates;
 }
 
 function parseDepositFromBalanceDiff(parsedTx, merchantTokenAccount) {
@@ -205,53 +173,12 @@ function parseDepositFromBalanceDiff(parsedTx, merchantTokenAccount) {
     }
   }
 
-  console.log('balanceDiff candidate:', {
-    beforeAmt: beforeAmt.toString(),
-    afterAmt: afterAmt.toString(),
-    diff: diff.toString(),
-    sourceOwner,
-    sourceTokenAccount
-  });
-
   return {
     amountAtomic: diff,
     sourceOwner,
     sourceTokenAccount,
     parser: 'balanceDiff'
   };
-}
-
-function extractRealSenderAddresses(parsedTx) {
-  const result = new Set();
-
-  const signerKeys = parsedTx?.transaction?.message?.accountKeys || [];
-  for (const key of signerKeys) {
-    const normalized = normalizePubkey(key);
-    if (normalized) result.add(normalized);
-    if (key && typeof key === 'object' && key.signer && normalized) {
-      result.add(normalized);
-    }
-  }
-
-  const pre = parsedTx?.meta?.preTokenBalances || [];
-  const post = parsedTx?.meta?.postTokenBalances || [];
-
-  for (const item of [...pre, ...post]) {
-    const owner = normalizePubkey(item?.owner);
-    if (owner) result.add(owner);
-  }
-
-  return result;
-}
-
-function parseDepositFromParsedTx(parsedTx, merchantTokenAccount) {
-  const byInstruction = extractDepositFromInstructions(parsedTx, merchantTokenAccount);
-  if (byInstruction) return byInstruction;
-
-  const byDiff = parseDepositFromBalanceDiff(parsedTx, merchantTokenAccount);
-  if (byDiff) return byDiff;
-
-  return null;
 }
 
 async function scanAndCreditUserDeposits(prisma, user) {
@@ -263,14 +190,6 @@ async function scanAndCreditUserDeposits(prisma, user) {
   const merchantAta = await getMerchantTokenAccount();
   const sigs = await getSignaturesForAddress(merchantAta, 50);
   const created = [];
-
-  console.log('scanAndCreditUserDeposits start:', {
-    userId: user.id,
-    externalId: user.externalId,
-    userWallet,
-    merchantAta,
-    signaturesFound: sigs.length
-  });
 
   for (const s of sigs) {
     const sig = s.signature;
@@ -284,34 +203,19 @@ async function scanAndCreditUserDeposits(prisma, user) {
     const parsed = await getParsedTransaction(sig);
     if (!parsed) continue;
 
-    logTxDebug(sig, parsed, merchantAta);
+    const candidates = extractDepositCandidates(parsed, merchantAta);
 
-    const info = parseDepositFromParsedTx(parsed, merchantAta);
+    let info =
+      candidates.find((c) => c.sourceOwner && String(c.sourceOwner) === userWallet) || null;
+
     if (!info) {
-      console.log('skip tx: no deposit info parsed for signature', sig);
-      continue;
+      const fallback = parseDepositFromBalanceDiff(parsed, merchantAta);
+      if (fallback && fallback.sourceOwner && String(fallback.sourceOwner) === userWallet) {
+        info = fallback;
+      }
     }
 
-    const possibleSenders = extractRealSenderAddresses(parsed);
-
-    const matchesUser =
-      (info.sourceOwner && String(info.sourceOwner) === userWallet) ||
-      possibleSenders.has(userWallet);
-
-    console.log('deposit parse result:', {
-      signature: sig,
-      parser: info.parser,
-      amountAtomic: String(info.amountAtomic),
-      sourceOwner: info.sourceOwner,
-      sourceTokenAccount: info.sourceTokenAccount,
-      matchesUser,
-      userWallet,
-      possibleSenders: Array.from(possibleSenders)
-    });
-
-    if (!matchesUser) {
-      continue;
-    }
+    if (!info) continue;
 
     const amountAtomic = BigInt(String(info.amountAtomic || '0'));
     if (amountAtomic <= 0n) continue;
@@ -376,11 +280,6 @@ async function scanAndCreditUserDeposits(prisma, user) {
     });
 
     if (dep) {
-      console.log('deposit credited:', {
-        signature: sig,
-        depositId: dep.id,
-        amountAtomic: dep.amountAtomic?.toString?.() || String(dep.amountAtomic)
-      });
       created.push(dep);
     }
   }

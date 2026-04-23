@@ -1,5 +1,6 @@
 const express = require('express');
 const { generateExternalId } = require('../utils/id');
+const { getMerchantTokenAccount } = require('../utils/solana_rpc');
 const {
   SERVER_API_KEY,
   TELEGRAM_MINI_APP_URL,
@@ -149,6 +150,8 @@ module.exports = ({ prisma }) => {
         return res.status(404).json({ error: 'User not found' });
       }
 
+      const merchantTokenAccount = await getMerchantTokenAccount();
+
       const deposits = await prisma.deposit.findMany({
         where: { userId: user.id },
         orderBy: { createdAt: 'desc' },
@@ -187,6 +190,7 @@ module.exports = ({ prisma }) => {
           walletVerifiedAt: user.wallet?.walletVerifiedAt || null,
           balanceAtomic: user.wallet?.balanceAtomic || 0n,
           merchantWallet: MERCHANT_WALLET,
+          merchantTokenAccount,
           allowManualWalletLink: ALLOW_MANUAL_WALLET_LINK
         },
         deposits,

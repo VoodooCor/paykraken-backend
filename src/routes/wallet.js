@@ -6,6 +6,7 @@ const { PublicKey } = require('@solana/web3.js');
 const { validateTelegramInitData } = require('../utils/telegramAuth');
 const { scanAndCreditUserDeposits } = require('../services/depositService');
 const { debit } = require('../services/ledgerService');
+const { getMerchantTokenAccount } = require('../utils/solana_rpc');
 const {
   TELEGRAM_BOT_TOKEN,
   MERCHANT_WALLET,
@@ -113,6 +114,7 @@ module.exports = ({ prisma }) => {
   router.get('/profile/:externalId', async (req, res, next) => {
     try {
       const { appUser } = await getAuthorizedUser(prisma, req, req.params.externalId);
+      const merchantTokenAccount = await getMerchantTokenAccount();
 
       const deposits = await prisma.deposit.findMany({
         where: { userId: appUser.id },
@@ -151,6 +153,7 @@ module.exports = ({ prisma }) => {
           walletVerifiedAt: appUser.wallet?.walletVerifiedAt || null,
           balanceAtomic: appUser.wallet?.balanceAtomic || 0n,
           merchantWallet: MERCHANT_WALLET,
+          merchantTokenAccount,
           allowManualWalletLink: ALLOW_MANUAL_WALLET_LINK
         },
         deposits,

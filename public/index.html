@@ -965,7 +965,7 @@
         }
 
         els.walletShortView.textContent = walletText;
-        els.merchantWalletInput.value = p.merchantWallet || '';
+        els.merchantWalletInput.value = p.merchantTokenAccount || p.merchantWallet || '';
         els.solanaWalletInput.value = p.solanaAddress || state.phantomPublicKey || '';
 
         if (p.solanaVerified) {
