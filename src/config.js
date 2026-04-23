@@ -14,7 +14,7 @@ const TELEGRAM_AUTH_MAX_AGE_SECONDS = Number(
 
 const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL || '';
 const BLKR_MINT = process.env.BLKR_MINT || '';
-const BLKR_DECIMALS = parseInt(process.env.BLKR_DECIMALS || '9', 10);
+const BLKR_DECIMALS = parseInt(process.env.BLKR_DECIMALS || '6', 10);
 const MERCHANT_WALLET =
   process.env.MERCHANT_WALLET || 'Fzt7CcgxXeuKzf9jHR8FCpnepdujSbtT1fmWGHqWA5FT';
 const MERCHANT_TOKEN_ACCOUNT = process.env.MERCHANT_TOKEN_ACCOUNT || '';
