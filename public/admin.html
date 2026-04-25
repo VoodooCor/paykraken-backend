@@ -302,7 +302,7 @@
       <div class="topbar">
         <div class="title">
           <h1>Admin Panel</h1>
-          <p>Заявки на вывод, audit log, причины отказа и tx hash</p>
+          <p>Заявки на вывод, audit log, причины отказа, tx hash и ручное управление балансом</p>
         </div>
         <div class="controls">
           <button class="btn-ghost" id="saveKeyBtn">Сохранить ключ</button>
@@ -343,6 +343,7 @@
       <div class="tabs">
         <button class="tab-btn active" data-tab="withdrawals">Заявки на вывод</button>
         <button class="tab-btn" data-tab="audit">Audit Log</button>
+        <button class="tab-btn" data-tab="balances">Балансы</button>
       </div>
 
       <div class="stats">
@@ -381,10 +382,65 @@
         </div>
         <div class="audit-list" id="auditList"></div>
       </section>
+
+      <section id="tab-balances" class="hidden">
+        <div class="card">
+          <div class="row">
+            <div style="flex:1;min-width:220px;">
+              <div class="label">External ID</div>
+              <input id="balanceExternalIdInput" placeholder="Например DWED-21344-DADDA" />
+            </div>
+            <div style="flex:1;min-width:220px;">
+              <div class="label">Steam ID</div>
+              <input id="balanceSteamIdInput" placeholder="Например 7656119..." />
+            </div>
+            <div style="display:flex;align-items:flex-end;">
+              <button class="btn-primary" id="findUserBalanceBtn">Найти игрока</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div id="balanceUserInfo" class="status-box">Сначала найдите игрока</div>
+        </div>
+
+        <div class="card">
+          <div class="row">
+            <div style="flex:1;min-width:180px;">
+              <div class="label">Режим</div>
+              <select id="balanceModeInput">
+                <option value="set">Установить баланс</option>
+                <option value="add">Прибавить</option>
+                <option value="sub">Вычесть</option>
+              </select>
+            </div>
+            <div style="flex:1;min-width:220px;">
+              <div class="label">Сумма в atomic</div>
+              <input id="balanceAmountAtomicInput" placeholder="Например 1000000" />
+            </div>
+            <div style="flex:1;min-width:220px;">
+              <div class="label">Причина</div>
+              <input id="balanceReasonInput" placeholder="Например ban / correction / compensation" />
+            </div>
+          </div>
+
+          <div class="row" style="margin-top:10px;">
+            <div style="flex:1;min-width:260px;">
+              <div class="label">Комментарий</div>
+              <textarea id="balanceCommentInput" placeholder="Внутренний комментарий администратора"></textarea>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button class="btn-warning" id="applyBalanceChangeBtn">Применить изменение баланса</button>
+          </div>
+        </div>
+      </section>
     </div>
 
     <script>
       const BLKR_DECIMALS = 6;
+      let selectedBalanceUser = null;
 
       const els = {
         adminKeyInput: document.getElementById('adminKeyInput'),
@@ -397,7 +453,14 @@
         statTotal: document.getElementById('statTotal'),
         statRequested: document.getElementById('statRequested'),
         statProcessing: document.getElementById('statProcessing'),
-        statClosed: document.getElementById('statClosed')
+        statClosed: document.getElementById('statClosed'),
+        balanceExternalIdInput: document.getElementById('balanceExternalIdInput'),
+        balanceSteamIdInput: document.getElementById('balanceSteamIdInput'),
+        balanceUserInfo: document.getElementById('balanceUserInfo'),
+        balanceModeInput: document.getElementById('balanceModeInput'),
+        balanceAmountAtomicInput: document.getElementById('balanceAmountAtomicInput'),
+        balanceReasonInput: document.getElementById('balanceReasonInput'),
+        balanceCommentInput: document.getElementById('balanceCommentInput')
       };
 
       const savedKey = localStorage.getItem('pbk_admin_key') || '';
@@ -736,6 +799,99 @@
         });
       }
 
+      function renderBalanceUser(user) {
+        if (!user) {
+          els.balanceUserInfo.textContent = 'Игрок не выбран';
+          return;
+        }
+
+        const balanceAtomic = String(user.wallet?.balanceAtomic || '0');
+        const balanceBlkr = atomicToBLKR(balanceAtomic);
+
+        els.balanceUserInfo.innerHTML = `
+ID: ${user.id}
+External ID: ${user.externalId || '—'}
+Steam ID: ${user.steamId || '—'}
+Ник: ${user.rustNickname || '—'}
+Telegram: ${user.telegramUsername ? '@' + user.telegramUsername : '—'}
+Solana: ${user.wallet?.solanaAddress || '—'}
+Подтверждён: ${user.wallet?.solanaVerified ? 'Да' : 'Нет'}
+
+Баланс:
+- Atomic: ${balanceAtomic}
+- BLKR: ${balanceBlkr}
+        `.trim();
+      }
+
+      async function findUserBalance() {
+        try {
+          const externalId = els.balanceExternalIdInput.value.trim();
+          const steamId = els.balanceSteamIdInput.value.trim();
+
+          if (!externalId && !steamId) {
+            setStatus('Укажите externalId или steamId');
+            return;
+          }
+
+          const query = externalId
+            ? `externalId=${encodeURIComponent(externalId)}`
+            : `steamId=${encodeURIComponent(steamId)}`;
+
+          const data = await adminApi(`/api/admin/users/find?${query}`, {
+            method: 'GET'
+          });
+
+          selectedBalanceUser = data.user || null;
+          renderBalanceUser(selectedBalanceUser);
+          setStatus('Игрок найден');
+        } catch (e) {
+          selectedBalanceUser = null;
+          renderBalanceUser(null);
+          setStatus(`Ошибка поиска игрока: ${e.message}`);
+        }
+      }
+
+      async function applyBalanceChange() {
+        try {
+          if (!selectedBalanceUser?.id) {
+            setStatus('Сначала найдите игрока');
+            return;
+          }
+
+          const mode = els.balanceModeInput.value;
+          const amountAtomic = els.balanceAmountAtomicInput.value.trim();
+          const reason = els.balanceReasonInput.value.trim();
+          const comment = els.balanceCommentInput.value.trim();
+
+          if (!amountAtomic) {
+            setStatus('Укажите amountAtomic');
+            return;
+          }
+
+          const data = await adminApi(`/api/admin/users/${selectedBalanceUser.id}/balance`, {
+            method: 'POST',
+            body: JSON.stringify({
+              mode,
+              amountAtomic,
+              reason,
+              comment
+            })
+          });
+
+          setStatus(data);
+
+          const refreshData = await adminApi(
+            `/api/admin/users/find?externalId=${encodeURIComponent(selectedBalanceUser.externalId)}`,
+            { method: 'GET' }
+          );
+
+          selectedBalanceUser = refreshData.user || null;
+          renderBalanceUser(selectedBalanceUser);
+        } catch (e) {
+          setStatus(`Ошибка изменения баланса: ${e.message}`);
+        }
+      }
+
       async function loadWithdrawals() {
         try {
           const status = els.statusFilter.value;
@@ -808,6 +964,7 @@
 
         document.getElementById('tab-withdrawals').classList.toggle('hidden', tab !== 'withdrawals');
         document.getElementById('tab-audit').classList.toggle('hidden', tab !== 'audit');
+        document.getElementById('tab-balances').classList.toggle('hidden', tab !== 'balances');
       }
 
       document.querySelectorAll('.tab-btn').forEach((btn) => {
@@ -819,6 +976,8 @@
             await loadWithdrawals();
           } else if (tab === 'audit') {
             await loadAudit();
+          } else if (tab === 'balances') {
+            renderBalanceUser(selectedBalanceUser);
           }
         });
       });
@@ -833,14 +992,18 @@
         const activeTab = document.querySelector('.tab-btn.active')?.dataset.tab || 'withdrawals';
         if (activeTab === 'withdrawals') {
           await loadWithdrawals();
-        } else {
+        } else if (activeTab === 'audit') {
           await loadAudit();
+        } else if (activeTab === 'balances') {
+          renderBalanceUser(selectedBalanceUser);
         }
       });
 
       document.getElementById('testAuditBtn').addEventListener('click', testAudit);
       document.getElementById('loadAuditBtn').addEventListener('click', loadAudit);
       document.getElementById('loadAuditByTargetBtn').addEventListener('click', loadAuditByTarget);
+      document.getElementById('findUserBalanceBtn').addEventListener('click', findUserBalance);
+      document.getElementById('applyBalanceChangeBtn').addEventListener('click', applyBalanceChange);
       els.statusFilter.addEventListener('change', loadWithdrawals);
 
       if (els.adminKeyInput.value.trim()) {

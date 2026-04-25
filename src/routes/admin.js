@@ -52,6 +52,32 @@ function normalizeTxSignature(value) {
   return normalizeOptionalText(value, 300);
 }
 
+function parseAtomic(value, field = 'amountAtomic') {
+  if (value === undefined || value === null || value === '') {
+    throw Object.assign(new Error(`${field} required`), { status: 400 });
+  }
+
+  const raw = String(value).trim();
+
+  if (!/^-?\d+$/.test(raw)) {
+    throw Object.assign(new Error(`${field} must be integer string`), { status: 400 });
+  }
+
+  try {
+    return BigInt(raw);
+  } catch {
+    throw Object.assign(new Error(`${field} is invalid`), { status: 400 });
+  }
+}
+
+function toAdjustmentMode(value) {
+  const mode = String(value || '').trim().toLowerCase();
+  if (!['set', 'add', 'sub'].includes(mode)) {
+    throw Object.assign(new Error('mode must be set/add/sub'), { status: 400 });
+  }
+  return mode;
+}
+
 const ALLOWED_STATUSES = ['REQUESTED', 'APPROVED', 'SENDING', 'SENT', 'REJECTED'];
 
 const ALLOWED_TRANSITIONS = {
@@ -399,6 +425,182 @@ module.exports = ({ prisma }) => {
       res.json({
         ok: true,
         item
+      });
+    } catch (e) {
+      next(e);
+    }
+  });
+
+  router.get('/users/find', requireAdmin, async (req, res, next) => {
+    try {
+      const externalId = String(req.query.externalId || '').trim();
+      const steamId = String(req.query.steamId || '').trim();
+
+      if (!externalId && !steamId) {
+        return res.status(400).json({
+          error: 'externalId or steamId required'
+        });
+      }
+
+      const where = externalId ? { externalId } : { steamId };
+
+      const user = await prisma.user.findUnique({
+        where,
+        include: {
+          wallet: true
+        }
+      });
+
+      if (!user) {
+        return res.status(404).json({
+          error: 'USER_NOT_FOUND'
+        });
+      }
+
+      res.json({
+        ok: true,
+        user: {
+          id: user.id,
+          externalId: user.externalId,
+          steamId: user.steamId,
+          rustNickname: user.rustNickname,
+          telegramUserId: user.telegramUserId,
+          telegramUsername: user.telegramUsername,
+          wallet: {
+            solanaAddress: user.wallet?.solanaAddress || null,
+            solanaVerified: user.wallet?.solanaVerified || false,
+            balanceAtomic: user.wallet?.balanceAtomic || 0n
+          }
+        }
+      });
+    } catch (e) {
+      next(e);
+    }
+  });
+
+  router.post('/users/:id/balance', requireAdmin, async (req, res, next) => {
+    try {
+      const userId = Number.parseInt(req.params.id, 10);
+      if (!Number.isInteger(userId) || userId <= 0) {
+        return res.status(400).json({ error: 'invalid user id' });
+      }
+
+      const mode = toAdjustmentMode(req.body?.mode);
+      const amountAtomic = parseAtomic(req.body?.amountAtomic, 'amountAtomic');
+      const reason = normalizeOptionalText(req.body?.reason, 500);
+      const comment = normalizeOptionalText(req.body?.comment, 2000);
+
+      const actor = req.adminActor;
+
+      const result = await prisma.$transaction(async (tx) => {
+        const user = await tx.user.findUnique({
+          where: { id: userId },
+          include: { wallet: true }
+        });
+
+        if (!user || !user.wallet) {
+          throw Object.assign(new Error('user or wallet not found'), { status: 404 });
+        }
+
+        const currentBalance = BigInt(user.wallet.balanceAtomic || 0);
+        let nextBalance = currentBalance;
+        let delta = 0n;
+
+        if (mode === 'set') {
+          if (amountAtomic < 0n) {
+            throw Object.assign(new Error('set balance cannot be negative'), { status: 400 });
+          }
+          nextBalance = amountAtomic;
+          delta = nextBalance - currentBalance;
+        }
+
+        if (mode === 'add') {
+          if (amountAtomic <= 0n) {
+            throw Object.assign(new Error('add amount must be > 0'), { status: 400 });
+          }
+          delta = amountAtomic;
+          nextBalance = currentBalance + delta;
+        }
+
+        if (mode === 'sub') {
+          if (amountAtomic <= 0n) {
+            throw Object.assign(new Error('sub amount must be > 0'), { status: 400 });
+          }
+          delta = -amountAtomic;
+          nextBalance = currentBalance + delta;
+
+          if (nextBalance < 0n) {
+            throw Object.assign(new Error('result balance cannot be negative'), { status: 400 });
+          }
+        }
+
+        const updatedWallet = await tx.wallet.update({
+          where: { userId: user.id },
+          data: {
+            balanceAtomic: nextBalance
+          }
+        });
+
+        const ledger = await tx.ledgerEntry.create({
+          data: {
+            userId: user.id,
+            type: 'ADJUSTMENT',
+            amountAtomic: delta,
+            reference: `admin_balance_adjustment:${mode}`,
+            meta: {
+              mode,
+              previousBalance: currentBalance.toString(),
+              newBalance: nextBalance.toString(),
+              requestedAmountAtomic: amountAtomic.toString(),
+              reason: reason || null,
+              comment: comment || null,
+              actorType: actor.actorType,
+              actorId: actor.actorId,
+              actorLabel: actor.actorLabel
+            }
+          }
+        });
+
+        await createAdminAudit(tx, {
+          req,
+          actorType: actor.actorType,
+          actorId: actor.actorId,
+          actorLabel: actor.actorLabel,
+          action: 'USER_BALANCE_ADJUSTED',
+          targetType: 'USER',
+          targetId: String(user.id),
+          meta: {
+            userId: user.id,
+            externalId: user.externalId,
+            steamId: user.steamId,
+            mode,
+            previousBalance: currentBalance.toString(),
+            newBalance: nextBalance.toString(),
+            delta: delta.toString(),
+            requestedAmountAtomic: amountAtomic.toString(),
+            reason: reason || null,
+            comment: comment || null,
+            ledgerEntryId: ledger.id
+          }
+        });
+
+        return {
+          user,
+          wallet: updatedWallet,
+          ledger
+        };
+      });
+
+      res.json({
+        ok: true,
+        user: {
+          id: result.user.id,
+          externalId: result.user.externalId,
+          steamId: result.user.steamId,
+          rustNickname: result.user.rustNickname
+        },
+        wallet: result.wallet,
+        ledger: result.ledger
       });
     } catch (e) {
       next(e);

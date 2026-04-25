@@ -686,9 +686,12 @@
       const HIGHLIGHT_TTL_MS = 12000;
       const TOAST_TTL_MS = 5000;
       const BLKR_DECIMALS = 6;
+      const SAVED_EXTERNAL_ID_KEY = 'pbk_external_id';
+
+      const savedExternalId = localStorage.getItem(SAVED_EXTERNAL_ID_KEY) || '';
 
       const state = {
-        externalId: startParam || '',
+        externalId: startParam || savedExternalId || '',
         profile: null,
         me: null,
         listings: [],
@@ -726,6 +729,23 @@
       };
 
       els.externalIdInput.value = state.externalId;
+
+      if (startParam) {
+        localStorage.setItem(SAVED_EXTERNAL_ID_KEY, startParam);
+      }
+
+      function saveExternalId(value) {
+        const normalized = String(value || '').trim();
+        if (!normalized) {
+          localStorage.removeItem(SAVED_EXTERNAL_ID_KEY);
+          return;
+        }
+        localStorage.setItem(SAVED_EXTERNAL_ID_KEY, normalized);
+      }
+
+      function loadSavedExternalId() {
+        return localStorage.getItem(SAVED_EXTERNAL_ID_KEY) || '';
+      }
 
       els.tgInfo.textContent = tgUser
         ? `${tgUser.first_name || ''} ${tgUser.last_name || ''} (@${tgUser.username || 'no_username'}, id=${tgUser.id})`
@@ -961,6 +981,7 @@
       function getExternalId() {
         const value = els.externalIdInput.value.trim();
         state.externalId = value;
+        saveExternalId(value);
         return value;
       }
 
@@ -973,6 +994,12 @@
 
         const p = profileData.profile || {};
         state.profile = profileData;
+
+        if (p.externalId) {
+          state.externalId = p.externalId;
+          els.externalIdInput.value = p.externalId;
+          saveExternalId(p.externalId);
+        }
 
         els.balanceView.textContent = `${atomicToBLKR(p.balanceAtomic)} BLKR`;
         els.externalIdView.textContent = p.externalId || '—';
@@ -1498,6 +1525,7 @@
 
       els.externalIdInput.addEventListener('change', async () => {
         state.externalId = els.externalIdInput.value.trim();
+        saveExternalId(state.externalId);
         state.previousWithdrawStatusMap = {};
         state.changedWithdrawIds = {};
         state.shownToastKeys = {};
@@ -1533,7 +1561,14 @@
         if (state.externalId) {
           await loadProfile({ showStatus: true, force: true });
         } else {
-          setStatus('Укажи External ID и привяжи Telegram аккаунт');
+          const restored = loadSavedExternalId();
+          if (restored) {
+            els.externalIdInput.value = restored;
+            state.externalId = restored;
+            await loadProfile({ showStatus: true, force: true });
+          } else {
+            setStatus('Укажи External ID и привяжи Telegram аккаунт');
+          }
         }
 
         const provider = getPhantomProvider();
