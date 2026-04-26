@@ -518,6 +518,9 @@
             <div class="refresh-indicator" id="lastRefreshView">Последнее обновление: —</div>
           </div>
           <div class="big-balance" id="balanceView">0 BLKR</div>
+          <div class="good-box" id="blkrValuationBox" style="margin-top:12px;">
+            200 000 000 BLKR ≈ — USDT ≈ — ₽
+          </div>
           <div class="row" style="margin-top:14px;">
             <button class="btn btn-primary" id="checkDepositBtn">Я пополнил</button>
             <button class="btn btn-success" id="openWalletTabBtn">Кошелёк</button>
@@ -725,7 +728,8 @@
         withdrawHistory: document.getElementById('withdrawHistory'),
         walletVerifiedBox: document.getElementById('walletVerifiedBox'),
         lastRefreshView: document.getElementById('lastRefreshView'),
-        toastStack: document.getElementById('toastStack')
+        toastStack: document.getElementById('toastStack'),
+        blkrValuationBox: document.getElementById('blkrValuationBox')
       };
 
       els.externalIdInput.value = state.externalId;
@@ -754,6 +758,33 @@
       function setStatus(message) {
         els.statusBox.textContent =
           typeof message === 'string' ? message : JSON.stringify(message, null, 2);
+      }
+
+      async function loadBlkrValuation() {
+        try {
+          const response = await fetch('/api/rates/blkr-valuation');
+          const text = await response.text();
+
+          let data;
+          try {
+            data = JSON.parse(text);
+          } catch {
+            throw new Error('Invalid valuation response');
+          }
+
+          if (!response.ok || !data?.ok || !data?.data) {
+            throw new Error(data?.error || 'Failed to load BLKR valuation');
+          }
+
+          const valuation = data.data;
+
+          els.blkrValuationBox.textContent =
+            `${valuation.formatted.blkr} ≈ ${valuation.formatted.usdt} ≈ ${valuation.formatted.rub}`;
+        } catch (e) {
+          console.error('loadBlkrValuation error:', e);
+          els.blkrValuationBox.textContent =
+            '200 000 000 BLKR ≈ недоступно сейчас';
+        }
       }
 
       function shortAddress(addr) {
@@ -1520,6 +1551,7 @@
         await loadMe();
         await loadProfile({ showStatus: true, force: true });
         await loadMarket();
+        await loadBlkrValuation();
       });
       document.getElementById('openWalletTabBtn').addEventListener('click', () => activateTab('wallet'));
 
@@ -1557,6 +1589,7 @@
         } catch {}
 
         await loadMarket();
+        await loadBlkrValuation();
 
         if (state.externalId) {
           await loadProfile({ showStatus: true, force: true });
