@@ -13,15 +13,16 @@
         --bg: #0f141a;
         --panel: #18212b;
         --panel-2: #1f2a36;
-        --text: #f3f7fb;
-        --muted: #93a4b7;
-        --line: rgba(255,255,255,0.08);
-        --accent: #2ea6ff;
-        --accent-2: #3ccf91;
+        --text: #e0e0e0;
+        --muted: #e0e0e0;
+        --line: #ff003c1a;
+        --accent: #1a1a25;
+        --accent-2: #ff003c33;
         --danger: #ff5c7a;
         --warning: #f7b84b;
         --shadow: 0 10px 30px rgba(0,0,0,.28);
-        --radius: 18px;
+        --radius: 10px;
+		--bk-gradient-blood: linear-gradient(135deg, #ff003c 0%, #ff6b00 50%, #ff003c 100%);
       }
 
       * {
@@ -30,9 +31,10 @@
 
       body {
         margin: 0;
-        background: linear-gradient(180deg, #0e1318 0%, #111923 100%);
+        background: #000000;;
         color: var(--text);
-        font-family: Inter, Arial, sans-serif;
+        font-family: Arial;
+        font-size: 14px;
       }
 
       .app {
@@ -47,7 +49,7 @@
         align-items: center;
         justify-content: space-between;
         gap: 12px;
-        margin-bottom: 16px;
+        margin-bottom: 30px;
       }
 
       .brand {
@@ -61,7 +63,7 @@
         height: 44px;
         border-radius: 14px;
         background: linear-gradient(135deg, #2ea6ff, #6d5cff);
-        display: flex;
+        display: none;
         align-items: center;
         justify-content: center;
         font-weight: 800;
@@ -70,7 +72,10 @@
 
       .brand h1 {
         margin: 0;
-        font-size: 19px;
+        font-size: 26px;
+		text-transform: uppercase;
+        filter: drop-shadow(0 0 10px rgba(255, 0, 60, 0.5));
+        transition: all 0.3s ease;
       }
 
       .brand p {
@@ -80,39 +85,60 @@
       }
 
       .card {
-        background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.015));
-        border: 1px solid var(--line);
-        border-radius: var(--radius);
-        padding: 16px;
-        box-shadow: var(--shadow);
+        background: #1d1b1a;
+		padding: 16px;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
       }
 
       .hero {
         display: grid;
         grid-template-columns: 1.25fr .95fr;
         gap: 14px;
-        margin-bottom: 16px;
+        margin-bottom: 40px;
       }
 
       .balance-box {
-        background: radial-gradient(circle at top right, rgba(46,166,255,.22), transparent 35%),
-                    linear-gradient(180deg, #16202b, #131b24);
+        background: #1d1b1a;
       }
 
       .muted {
         color: var(--muted);
+        padding: 0px 0px 10px 0px;
+        font-size: 14px;
+        font-weight: 600;
+        text-transform: uppercase;
+      }
+      .muted2 {
+        color: var(--muted);
+        font-size: 14px;
+        font-weight: normal;
+      }
+      .muted3 {
+        color: var(--muted);
+        font-size: 12px;
+        text-transform: uppercase;
       }
 
       .big-balance {
-        font-size: 34px;
-        font-weight: 800;
-        margin-top: 10px;
+	    margin-top: 30px;
+        font-size: 26px;
+        font-weight: 700;
+        text-align: left;
       }
 
       .row {
         display: flex;
         gap: 10px;
         flex-wrap: wrap;
+		justify-content: space-between;
+      }
+      .row2 {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        justify-content: right;
       }
 
       .row-between {
@@ -124,57 +150,130 @@
       }
 
       .btn {
-        border: none;
-        border-radius: 14px;
         padding: 12px 14px;
-        font-size: 14px;
+        font-size: 12px;
         font-weight: 700;
+		text-transform: uppercase;
+		border: none;
+        border-radius: 10px;
         cursor: pointer;
         transition: .18s ease;
       }
 
       .btn:hover {
-        transform: translateY(-1px);
+        background: #ff003c33;
+        box-shadow: 0 0 15px rgba(255, 0, 60, 0.3);
       }
 
       .btn-primary {
         background: var(--accent);
-        color: white;
+        color: #ffffff;
+        border: 1px solid rgba(255, 0, 60, 0.3);
       }
-
+	  
       .btn-success {
         background: var(--accent-2);
-        color: white;
+        color: #ffffff;
+		border: 1px solid #ff003c;
+		box-shadow: none;
       }
 
       .btn-danger {
-        background: var(--danger);
-        color: white;
+        background: var(--accent-2);
+        color: #ffffff;
+		border: 1px solid #ff003c;
+		box-shadow: none;
       }
 
       .btn-warning {
         background: var(--warning);
         color: #161616;
       }
-
-      .btn-ghost {
-        background: rgba(255,255,255,.06);
-        color: white;
-        border: 1px solid var(--line);
+      .btn-warning:hover  {
+        background: #f3b241;
+        color: #161616;
+        box-shadow: 0 0 15px rgb(255 200 0 / 30%);
       }
 
+	  .btn-ghost {
+        background: var(--bk-gradient-blood);
+        border: none;
+        color: #ffffff;
+        font-family: var(--bk-font-header);
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        padding: 14px 32px;
+        border-radius: 10px;
+        position: relative;
+        overflow: hidden;
+        cursor: pointer;
+		transition: all 0.3s ease;
+        box-shadow: 0 1px 15px rgba(255, 0, 60, 0.4);
+      }
+      .btn-ghost::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+        transition: left 0.5s ease;
+      }
+      .btn-ghost:hover {
+	    background: var(--bk-gradient-blood);
+        color: #ffffff;
+        font-family: var(--bk-font-header);
+        transform: translateY(-2px);
+        box-shadow: 0 1px 15px rgba(255, 0, 60, 0.6);
+      }
+	  .btn-ghost:hover::before {
+        left: 100%;
+      }
+	  
+	  .btn-up {
+        background: rgb(40 40 40);
+        border: none;
+        color: #c1c1c1;
+        font-family: var(--bk-font-header);
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        padding: 15px 20px;
+        border-radius: 10px;
+        position: relative;
+        overflow: hidden;
+        cursor: pointer;
+		transition: all 0.3s ease;
+        box-shadow: none;
+      }
+      .btn-up:hover {
+        background: rgb(74 74 74);
+        color: #ffffff;
+		box-shadow: none;
+      } 
+	  
       .section {
         margin-bottom: 16px;
       }
 
       .section-title {
-        margin: 0 0 12px;
+		background: linear-gradient(180deg, rgba(18, 18, 26, 0.95) 0%, rgba(10, 10, 15, 0.98) 100%);
+        border-bottom: 2px solid transparent;
+        border-image: var(--bk-gradient-blood) 1;
+        box-shadow: 0 4px 30px rgba(255, 0, 60, 0.1);
+        padding: 15px 15px;
+		margin: 0;
         font-size: 17px;
+		text-transform: uppercase;
       }
 
       .grid-2 {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: 1.25fr .95fr;
         gap: 14px;
       }
 
@@ -185,10 +284,10 @@
       }
 
       .item {
-        background: rgba(255,255,255,.03);
-        border: 1px solid var(--line);
-        border-radius: 14px;
-        padding: 12px;
+        background: #282828;
+        border: 0;
+        border-radius: 0;
+        padding: 10px;
         transition: border-color .35s ease, box-shadow .35s ease, background .35s ease;
       }
 
@@ -232,15 +331,13 @@
         right: 0;
         bottom: 0;
         padding: 10px 12px 18px;
-        background: linear-gradient(180deg, rgba(15,20,26,0), rgba(15,20,26,.92) 35%, rgba(15,20,26,1));
-        backdrop-filter: blur(14px);
+        background: none;
       }
 
       .tabs-inner {
+	    background: linear-gradient(180deg, rgb(18 18 26) 0%, rgba(10, 10, 15, 0.98) 100%);
         max-width: 920px;
         margin: 0 auto;
-        background: rgba(24,33,43,.92);
-        border: 1px solid var(--line);
         border-radius: 20px;
         padding: 8px;
         display: grid;
@@ -249,39 +346,64 @@
       }
 
       .tab {
+        background: none;
         border: none;
-        background: transparent;
-        color: var(--muted);
-        padding: 12px;
-        border-radius: 14px;
+        color: #a1a1a1;
+        font-family: var(--bk-font-header);
+        font-size: 12px;
         font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        padding: 15px 10px;
+        border-radius: 10px;
+        position: relative;
+        overflow: hidden;
         cursor: pointer;
+		transition: all 0.3s ease;
+        box-shadow: none;
       }
-
-      .tab.active {
-        background: rgba(46,166,255,.16);
-        color: white;
+	  .tab::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+        transition: left 0.5s ease;
+      }
+	  .tab:hover, .tab.active {
+	    background: var(--bk-gradient-blood);
+        color: #ffffff;
+        font-family: var(--bk-font-header);
+        transform: translateY(-2px);
+        box-shadow: 0 1px 15px rgba(255, 0, 60, 0.6);
+      }
+	  .tab:hover::before {
+        left: 100%;
       }
 
       input, textarea {
-        width: 100%;
-        background: rgba(255,255,255,.06);
-        border: 1px solid var(--line);
-        color: white;
-        border-radius: 14px;
-        padding: 12px 14px;
-        outline: none;
-        font-size: 14px;
+       background-color: #282828;
+       width: 100%;
+	   padding: 12px 14px;
+       color: #ffffff;
+       font-size: 14px;
+       border: 0;
+       border-radius: 0;
+       outline: none;
       }
 
       .field {
-        margin-bottom: 10px;
+        margin-bottom: 20px;
       }
 
       .label {
-        font-size: 12px;
         color: var(--muted);
-        margin-bottom: 6px;
+        padding: 10px 0px;
+		margin-bottom: 6px;
+        font-size: 12px;
+        text-transform: uppercase;
       }
 
       .market-grid {
@@ -316,14 +438,12 @@
       }
 
       .status-box {
-        margin-top: 12px;
+        background: #1a1a25;
         padding: 12px;
-        border-radius: 14px;
-        background: rgba(255,255,255,.04);
-        border: 1px solid var(--line);
+		margin-top: 20px;
+        border: 2px solid var(--line);
         white-space: pre-wrap;
         word-break: break-word;
-        font-size: 13px;
       }
 
       .hidden {
@@ -331,13 +451,12 @@
       }
 
       .hint {
-        margin-top: 10px;
-        padding: 12px;
-        border-radius: 12px;
         background: rgba(247,184,75,.08);
+		color: #ffd27b;
+        padding: 12px;
+        margin-top: 20px !important;
+        border-radius: 12px;
         border: 1px solid rgba(247,184,75,.18);
-        color: #ffd27b;
-        font-size: 13px;
         line-height: 1.45;
       }
 
@@ -354,9 +473,10 @@
 
       .browser-actions {
         display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        margin-top: 10px;
+		flex-wrap: wrap;
+		gap: 10px;
+		justify-content: space-between;
+		margin-top: 20px;
       }
 
       .small {
@@ -370,12 +490,12 @@
       }
 
       .refresh-indicator {
+	    background: #282828;
+	    padding: 8px 15px;
         font-size: 12px;
         color: var(--muted);
-        padding: 6px 10px;
-        border: 1px solid var(--line);
-        border-radius: 999px;
-        background: rgba(255,255,255,.03);
+        border: 0;
+        border-radius: 5px;
       }
 
       .changed-highlight {
@@ -482,6 +602,7 @@
         .topbar {
           align-items: flex-start;
           flex-direction: column;
+		  padding: 0px 0px 10px 0px;
         }
 
         .toast-stack {
@@ -489,6 +610,25 @@
           left: 12px;
           width: auto;
         }
+		
+		.row, .row2 {
+          display: flex;
+          gap: 10px;
+          flex-wrap: wrap;
+		  justify-content: center;
+        }
+		 .btn-up, .btn-ghost, .btn-primary, .btn-success, .btn-danger, .btn-warning {
+          width: 100%;
+		}
+		.brand {
+		  display: block;
+          width: 100%;
+          padding: 0px 0px 15px 0px;
+		  text-align: center;
+		}
+		.section-title {
+		  text-align: center;
+		}
       }
     </style>
   </head>
@@ -505,31 +645,27 @@
           </div>
         </div>
         <div class="row">
-          <button class="btn btn-ghost" id="openExternalBtn">Открыть в браузере</button>
-          <button class="btn btn-ghost" id="copyAppLinkBtn">Скопировать ссылку</button>
-          <button class="btn btn-ghost" id="refreshAllBtn">Обновить</button>
+          <button class="btn btn-up" id="openExternalBtn">Открыть в браузере</button>
+          <button class="btn btn-up" id="copyAppLinkBtn">Скопировать ссылку</button>
+          <button class="btn btn-up" id="refreshAllBtn">Обновить</button>
         </div>
       </div>
-
+	  <h2 class="section-title">Аккаунт</h2>
       <div class="hero">
         <div class="card balance-box">
           <div class="row-between">
-            <div class="muted">Баланс кошелька</div>
+            <div class="muted3">Баланс кошелька</div>
             <div class="refresh-indicator" id="lastRefreshView">Последнее обновление: —</div>
           </div>
           <div class="big-balance" id="balanceView">0 BLKR</div>
-          <div class="good-box" id="blkrValuationBox" style="margin-top:12px;">
-            200 000 000 BLKR ≈ — USDT ≈ — ₽
-          </div>
           <div class="row" style="margin-top:14px;">
-            <button class="btn btn-primary" id="checkDepositBtn">Я пополнил</button>
-            <button class="btn btn-success" id="openWalletTabBtn">Кошелёк</button>
+            <button class="btn btn-primary" id="checkDepositBtn">Пополнить</button>
+            <button class="btn btn-success" id="openWalletTabBtn">Кошелек</button>
           </div>
           <div class="status-box" id="statusBox">Загрузка...</div>
         </div>
 
         <div class="card">
-          <div class="section-title">Аккаунт</div>
           <div class="item">
             <div class="muted">Telegram</div>
             <div id="tgInfo">—</div>
@@ -615,7 +751,7 @@
               <button class="btn btn-success" id="phantomSignBtn">Подписать и привязать</button>
             </div>
 
-            <div class="row" style="margin-top:10px;">
+            <div class="row2" style="margin-top:10px;">
               <button class="btn btn-danger" id="unlinkWalletBtn">Отвязать кошелёк</button>
             </div>
 
@@ -637,14 +773,14 @@
               <div class="label">Сумма вывода в BLKR</div>
               <input id="withdrawAmountInput" placeholder="Например 500 или 1250.5" />
             </div>
-            <div class="muted" style="margin-top:8px;">
+            <div class="muted2" style="margin-top:8px;">
               Введите обычную сумму в BLKR. Система сама переведёт её в atomic.
             </div>
             <div class="row" style="margin-top:12px;">
               <button class="btn btn-success" id="withdrawBtn">Запросить вывод</button>
               <button class="btn btn-primary" id="checkDepositBtn2">Проверить пополнение</button>
             </div>
-            <div style="margin-top:10px;" class="muted">
+            <div style="margin-top:10px;" class="muted2">
               Вывод доступен только на подтверждённый Solana кошелёк.
             </div>
           </div>
@@ -689,12 +825,9 @@
       const HIGHLIGHT_TTL_MS = 12000;
       const TOAST_TTL_MS = 5000;
       const BLKR_DECIMALS = 6;
-      const SAVED_EXTERNAL_ID_KEY = 'pbk_external_id';
-
-      const savedExternalId = localStorage.getItem(SAVED_EXTERNAL_ID_KEY) || '';
 
       const state = {
-        externalId: startParam || savedExternalId || '',
+        externalId: startParam || '',
         profile: null,
         me: null,
         listings: [],
@@ -728,28 +861,10 @@
         withdrawHistory: document.getElementById('withdrawHistory'),
         walletVerifiedBox: document.getElementById('walletVerifiedBox'),
         lastRefreshView: document.getElementById('lastRefreshView'),
-        toastStack: document.getElementById('toastStack'),
-        blkrValuationBox: document.getElementById('blkrValuationBox')
+        toastStack: document.getElementById('toastStack')
       };
 
       els.externalIdInput.value = state.externalId;
-
-      if (startParam) {
-        localStorage.setItem(SAVED_EXTERNAL_ID_KEY, startParam);
-      }
-
-      function saveExternalId(value) {
-        const normalized = String(value || '').trim();
-        if (!normalized) {
-          localStorage.removeItem(SAVED_EXTERNAL_ID_KEY);
-          return;
-        }
-        localStorage.setItem(SAVED_EXTERNAL_ID_KEY, normalized);
-      }
-
-      function loadSavedExternalId() {
-        return localStorage.getItem(SAVED_EXTERNAL_ID_KEY) || '';
-      }
 
       els.tgInfo.textContent = tgUser
         ? `${tgUser.first_name || ''} ${tgUser.last_name || ''} (@${tgUser.username || 'no_username'}, id=${tgUser.id})`
@@ -758,33 +873,6 @@
       function setStatus(message) {
         els.statusBox.textContent =
           typeof message === 'string' ? message : JSON.stringify(message, null, 2);
-      }
-
-      async function loadBlkrValuation() {
-        try {
-          const response = await fetch('/api/rates/blkr-valuation');
-          const text = await response.text();
-
-          let data;
-          try {
-            data = JSON.parse(text);
-          } catch {
-            throw new Error('Invalid valuation response');
-          }
-
-          if (!response.ok || !data?.ok || !data?.data) {
-            throw new Error(data?.error || 'Failed to load BLKR valuation');
-          }
-
-          const valuation = data.data;
-
-          els.blkrValuationBox.textContent =
-            `${valuation.formatted.blkr} ≈ ${valuation.formatted.usdt} ≈ ${valuation.formatted.rub}`;
-        } catch (e) {
-          console.error('loadBlkrValuation error:', e);
-          els.blkrValuationBox.textContent =
-            '200 000 000 BLKR ≈ недоступно сейчас';
-        }
       }
 
       function shortAddress(addr) {
@@ -1012,7 +1100,6 @@
       function getExternalId() {
         const value = els.externalIdInput.value.trim();
         state.externalId = value;
-        saveExternalId(value);
         return value;
       }
 
@@ -1025,12 +1112,6 @@
 
         const p = profileData.profile || {};
         state.profile = profileData;
-
-        if (p.externalId) {
-          state.externalId = p.externalId;
-          els.externalIdInput.value = p.externalId;
-          saveExternalId(p.externalId);
-        }
 
         els.balanceView.textContent = `${atomicToBLKR(p.balanceAtomic)} BLKR`;
         els.externalIdView.textContent = p.externalId || '—';
@@ -1551,13 +1632,11 @@
         await loadMe();
         await loadProfile({ showStatus: true, force: true });
         await loadMarket();
-        await loadBlkrValuation();
       });
       document.getElementById('openWalletTabBtn').addEventListener('click', () => activateTab('wallet'));
 
       els.externalIdInput.addEventListener('change', async () => {
         state.externalId = els.externalIdInput.value.trim();
-        saveExternalId(state.externalId);
         state.previousWithdrawStatusMap = {};
         state.changedWithdrawIds = {};
         state.shownToastKeys = {};
@@ -1589,19 +1668,11 @@
         } catch {}
 
         await loadMarket();
-        await loadBlkrValuation();
 
         if (state.externalId) {
           await loadProfile({ showStatus: true, force: true });
         } else {
-          const restored = loadSavedExternalId();
-          if (restored) {
-            els.externalIdInput.value = restored;
-            state.externalId = restored;
-            await loadProfile({ showStatus: true, force: true });
-          } else {
-            setStatus('Укажи External ID и привяжи Telegram аккаунт');
-          }
+          setStatus('Укажи External ID и привяжи Telegram аккаунт');
         }
 
         const provider = getPhantomProvider();
